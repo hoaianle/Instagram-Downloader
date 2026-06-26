@@ -78,10 +78,19 @@ async function downloadPostPhotos() {
     function extractMediaData(item) {
         const isVideo = item['media_type'] !== 1;
         const mediaItems = isVideo ? item['video_versions'] : item['image_versions2'].candidates;
-        const largestMediaItem = mediaItems.reduce((accumulator, currentValue) => {
-            if (accumulator.width > currentValue.width) return accumulator;
+        // Instagram includes center-cropped variants (often square) in candidates.
+        // Keep only the ones matching the original aspect ratio so we don't pick a crop.
+        const originalRatio = item['original_width'] / item['original_height'];
+        const uncropped = mediaItems.filter(
+            (candidate) => Math.abs(candidate.width / candidate.height - originalRatio) < 0.01,
+        );
+        const candidates = uncropped.length ? uncropped : mediaItems;
+        // Pick by area (width * height), not width alone, to avoid ties between a
+        // full image and a same-width crop.
+        const largestMediaItem = candidates.reduce((accumulator, currentValue) => {
+            if (accumulator.width * accumulator.height >= currentValue.width * currentValue.height) return accumulator;
             return currentValue;
-        }, mediaItems[0]);
+        }, candidates[0]);
         const media = {
             url: largestMediaItem.url,
             isVideo,
