@@ -79,7 +79,7 @@ async function downloadPostPhotos() {
         const isVideo = item['media_type'] !== 1;
         const mediaItems = isVideo ? item['video_versions'] : item['image_versions2'].candidates;
         const largestMediaItem = mediaItems.reduce((accumulator, currentValue) => {
-            if (accumulator.width > currentValue.width) return accumulator;
+            if (accumulator.width * accumulator.height > currentValue.width * currentValue.height) return accumulator;
             return currentValue;
         }, mediaItems[0]);
         const media = {
