@@ -311,6 +311,10 @@ const appState = Object.freeze(
         });
         navigation.addEventListener('navigate', (e) => {
             const currentPath = new URL(e.destination.url).pathname;
+            // Click on an image to download cause pathname become https://
+            if (currentPath.startsWith('https://')) {
+                return;
+            }
             const previousPath = window.location.pathname;
             // Hide/Show Download button when user navigate
             if (currentPath.startsWith('/direct')) {
