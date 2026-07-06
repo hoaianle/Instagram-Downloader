@@ -68,8 +68,8 @@ Edit Hide / Show Transition effects
 Some keyboard shortcuts will not work if you use an external application for typing.
 
 - Download: `D`
-- Close: `esc` `C` `c`
-- Select all `S` `s`
+- Close: `esc` `C` 
+- Select all `S`
 - Keyboard shortcut should work if you don't focus on special HTML Elements like `input` `textarea` or any element with `textbox` role (ex: comment, search, ...)
 
 ## Deprecated features
