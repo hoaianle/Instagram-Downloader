@@ -16,7 +16,14 @@
     "content_scripts": [
         {
             "matches": ["https://www.instagram.com/*"],
-            "js": ["src/js/utils.js", "src/js/main.js", "src/js/post.js", "src/js/story.js", "src/js/zip.js"],
+            "js": [
+                "src/js/utils.js",
+                "src/js/main.js",
+                "src/js/post.js",
+                "src/js/story.js",
+                "src/js/zip.js",
+                "lib/js.cookie.min.js"
+            ],
             "css": ["src/style/style.css"]
         },
         {
