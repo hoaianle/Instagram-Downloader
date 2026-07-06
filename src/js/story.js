@@ -32,6 +32,7 @@ async function getStoryPhotos(userId) {
     const apiURL = new URL('/api/v1/feed/reels_media/', IG_BASE_URL);
     apiURL.searchParams.set('reel_ids', userId);
     try {
+        setPreferredMediaResolutionCookies();
         const respone = await fetch(apiURL.href, getFetchOptions());
         const json = await respone.json();
         return json.reels[userId];
@@ -45,6 +46,7 @@ async function getHighlightStory(highlightsId) {
     const apiURL = new URL('/api/v1/feed/reels_media/', IG_BASE_URL);
     apiURL.searchParams.set('reel_ids', `highlight:${highlightsId}`);
     try {
+        setPreferredMediaResolutionCookies();
         const respone = await fetch(apiURL.href, getFetchOptions());
         const json = await respone.json();
         return json.reels[`highlight:${highlightsId}`];

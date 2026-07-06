@@ -13,6 +13,19 @@ function getCookieValue(name) {
         ?.split('=')[1];
 }
 
+/**
+ * The Instagram backend determines the maximum image resolution to return
+ * based on the `wd` and `dpr` cookies.
+ */
+function setPreferredMediaResolutionCookies() {
+    // 3840 × 2160
+    const width = 3840 / 2;
+    const height = 2160 / 2 - 100;
+    const dpr = 2; // device pixel ratio
+    Cookies.set('wd', `${width}x${height}`);
+    Cookies.set('dpr', dpr);
+}
+
 function getFetchOptions() {
     return {
         headers: {

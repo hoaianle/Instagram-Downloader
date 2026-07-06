@@ -49,6 +49,7 @@ async function getPostPhotos(shortcode) {
     const postId = convertToPostId(shortcode);
     const apiURL = new URL(`/api/v1/media/${postId}/info/`, IG_BASE_URL);
     try {
+        setPreferredMediaResolutionCookies();
         let respone = await fetch(apiURL.href, getFetchOptions());
         if (respone.status === 400) {
             const postId = await getPostIdFromApi();
