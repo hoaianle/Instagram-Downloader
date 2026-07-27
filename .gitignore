@@ -1,3 +1,4 @@
 *.json
 !manifest.json
 !.prettierrc.json
+release-note.md
