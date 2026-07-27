@@ -6,13 +6,6 @@ function saveFile(blob, fileName) {
     URL.revokeObjectURL(a.href);
 }
 
-function getCookieValue(name) {
-    return document.cookie
-        .split('; ')
-        .find((row) => row.startsWith(`${name}=`))
-        ?.split('=')[1];
-}
-
 /**
  * The Instagram backend determines the maximum image resolution to return
  * based on the `wd` and `dpr` cookies.
@@ -31,7 +24,7 @@ function getFetchOptions() {
         headers: {
             // Hardcode variable: a="129477";f.ASBD_ID=a in JS, can be remove
             // 'x-asbd-id': '129477',
-            'x-csrftoken': getCookieValue('csrftoken'),
+            'x-csrftoken': Cookies.get('csrftoken'),
             'x-ig-app-id': '936619743392459',
             'x-ig-www-claim': sessionStorage.getItem('www-claim-v2'),
             // 'x-instagram-ajax': '1006598911',
