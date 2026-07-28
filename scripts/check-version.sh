@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+set -euo pipefail
+
 MANIFEST_VERSION=$(jq -r '.version' manifest.json)
 
 if [ "v$MANIFEST_VERSION" != "$GITHUB_REF_NAME" ]; then
