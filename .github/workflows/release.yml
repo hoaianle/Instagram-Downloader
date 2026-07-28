@@ -23,6 +23,11 @@ jobs:
               with:
                   fetch-depth: 0
 
+            - name: Check manifest version
+              env:
+                  GITHUB_REF_NAME: ${{ github.ref_name }}
+              run: ./scripts/check-version.sh
+
             - name: Setup Node.js
               uses: actions/setup-node@v5
               with:
