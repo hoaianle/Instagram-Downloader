@@ -68,14 +68,18 @@ function resetDownloadState() {
     DOWNLOAD_BUTTON.disabled = false;
 }
 
-async function saveMedia(media, fileName) {
+async function saveMediaItem(item, fileName) {
     try {
-        const respone = await fetch(media.src);
+        const respone = await fetch(item.url);
         const blob = await respone.blob();
         saveFile(blob, fileName);
     } catch (error) {
         console.log(error);
     }
+}
+
+async function saveMedia(media, fileName) {
+    return saveMediaItem({ url: media.src }, fileName);
 }
 
 async function saveZip() {

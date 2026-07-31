@@ -30,6 +30,14 @@ const appCache = Object.freeze({
      * shortcode => post_id
      */
     postIdInfoCache: new Map(),
+    /**
+     * Cache fetched media lists so overlay buttons on the same post
+     * (e.g. feed thumbnail + its modal) don't re-fetch.
+     *
+     * key => { date, user: { username }, media: [{ url, isVideo, id }] }
+     * key is 'post:<shortcode>' | 'stories:<username>' | 'highlight:<highlightId>'
+     */
+    mediaDataCache: new Map(),
 });
 
 const appState = Object.freeze(
