@@ -65,9 +65,10 @@ async function getPostPhotos(shortcode) {
     }
 }
 
-async function downloadPostPhotos() {
-    if (!appState.current.shortcode) return null;
-    const json = await getPostPhotos(appState.current.shortcode);
+async function fetchPostMediaData(shortcode) {
+    const cacheKey = `post:${shortcode}`;
+    if (appCache.mediaDataCache.has(cacheKey)) return appCache.mediaDataCache.get(cacheKey);
+    const json = await getPostPhotos(shortcode);
     if (!json) return null;
     const data = {
         date: json['taken_at'],
@@ -92,5 +93,11 @@ async function downloadPostPhotos() {
     }
     if (json['carousel_media']) data.media = json['carousel_media'].map(extractMediaData);
     else data.media.push(extractMediaData(json));
+    appCache.mediaDataCache.set(cacheKey, data);
     return data;
+}
+
+async function downloadPostPhotos() {
+    if (!appState.current.shortcode) return null;
+    return fetchPostMediaData(appState.current.shortcode);
 }
