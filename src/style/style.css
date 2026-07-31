@@ -236,3 +236,86 @@
         transform: translate(-50%, -50%) rotate(360deg);
     }
 }
+
+/* Media overlay download button (injected on top of Instagram's own media) */
+
+.igd-media-anchor {
+    position: relative !important;
+}
+
+.igd-media-download-btn {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.5);
+    border: none;
+    outline: none;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 999;
+    padding: 0;
+    transition: background-color 0.15s ease;
+}
+
+.igd-media-anchor:hover .igd-media-download-btn,
+.igd-media-download-btn.igd-touch-visible {
+    display: flex;
+}
+
+.igd-media-download-btn:hover {
+    background: rgba(0, 0, 0, 0.7);
+}
+
+.igd-media-download-btn > svg {
+    width: 16px;
+    height: 16px;
+    fill: white;
+    display: block;
+}
+
+.igd-media-download-btn.igd-loading > svg {
+    display: none;
+}
+
+.igd-media-download-btn.igd-loading::after {
+    content: '';
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(255, 255, 255, 0.4);
+    border-top: 2px solid white;
+    border-radius: 50%;
+    animation: igd-spin 0.8s linear infinite;
+}
+
+@keyframes igd-spin {
+    0% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+.igd-media-download-btn.igd-success {
+    background: rgb(var(--ig-colors-button-primary-background));
+}
+
+.igd-media-download-btn.igd-success > svg {
+    display: none;
+}
+
+.igd-media-download-btn.igd-success::after {
+    content: '\2714';
+    color: white;
+    font-size: 14px;
+}
+
+.igd-media-download-btn.igd-error {
+    background: rgba(200, 40, 40, 0.85);
+}
