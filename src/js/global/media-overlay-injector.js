@@ -1,6 +1,23 @@
 (() => {
     const IG_POST_REGEX_MAIN = /\/(p|tv|reel|reels)\/([A-Za-z0-9_-]*)(\/?)/;
     let nextContainerId = 0;
+
+    // Full teardown on every SPA navigation, before the per-context handlers
+    // further down re-observe for whatever the new URL actually needs.
+    // Registered first so it runs before their own 'navigate' listeners
+    // (listeners fire in registration order for the same target/type). The
+    // functions/observers referenced here are only *called* once 'navigate'
+    // actually fires, by which point the whole script below has finished
+    // initializing them.
+    navigation.addEventListener('navigate', () => {
+        feedObserver.disconnect();
+        feedIntersectionObserver.disconnect();
+        gridObserver.disconnect();
+        gridIntersectionObserver.disconnect();
+        reelsObserver.disconnect();
+        storiesObserver.disconnect();
+        window.removeEventListener('scroll', debouncedFeedScan);
+    });
     /** containerId => the button element, so results can update it */
     const buttonRegistry = new Map();
 
@@ -150,10 +167,30 @@
         };
     }
 
+    // Feed can accumulate hundreds of loaded posts as the user scrolls, so
+    // only attach buttons to articles near the viewport (±1 screen), and
+    // never re-run the full-post detection logic for ones far off-screen.
+    const feedIntersectionObserver = new IntersectionObserver(
+        (entries) => {
+            entries.forEach((entry) => {
+                if (entry.isIntersecting) scanPostArticle(entry.target);
+            });
+        },
+        { rootMargin: '100% 0px 100% 0px' },
+    );
+
+    function observeNewArticles(main) {
+        main.querySelectorAll('article').forEach((article) => {
+            if (article.dataset.igdObserved) return;
+            article.dataset.igdObserved = 'true';
+            feedIntersectionObserver.observe(article);
+        });
+    }
+
     function scanFeedArticles() {
         const main = document.querySelector('main');
         if (!main) return;
-        main.querySelectorAll('article').forEach(scanPostArticle);
+        observeNewArticles(main);
     }
 
     const debouncedFeedScan = debounce(scanFeedArticles, Math.floor(1000 / 60));
@@ -189,17 +226,32 @@
         return match ? match[2] : null;
     }
 
+    function attachGridLink(link) {
+        const shortcode = extractShortcodeFromHref(link.href);
+        if (!shortcode) return;
+        if (!link.querySelector('img, video')) return;
+        attachOverlayButton(link, () => ({
+            kind: 'post',
+            shortcode,
+            mediaId: null,
+            index: 0,
+        }));
+    }
+
+    const gridIntersectionObserver = new IntersectionObserver(
+        (entries) => {
+            entries.forEach((entry) => {
+                if (entry.isIntersecting) attachGridLink(entry.target);
+            });
+        },
+        { rootMargin: '100% 0px 100% 0px' },
+    );
+
     function scanGridLinks() {
         document.querySelectorAll('a[href*="/p/"], a[href*="/reel/"]').forEach((link) => {
-            const shortcode = extractShortcodeFromHref(link.href);
-            if (!shortcode) return;
-            if (!link.querySelector('img, video')) return;
-            attachOverlayButton(link, () => ({
-                kind: 'post',
-                shortcode,
-                mediaId: null,
-                index: 0,
-            }));
+            if (link.dataset.igdObserved) return;
+            link.dataset.igdObserved = 'true';
+            gridIntersectionObserver.observe(link);
         });
     }
 
