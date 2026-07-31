@@ -206,4 +206,40 @@
     const gridObserver = new MutationObserver(debounce(scanGridLinks, Math.floor(1000 / 60)));
     gridObserver.observe(document.body, { childList: true, subtree: true });
     scanGridLinks();
+
+    /**
+     * Reels scroller (/reels/:code): always a single video, no carousel, so
+     * the index is always 0. Identified the same way reels-scroll-handler.js
+     * already does, via the PolarisClipsViewer_media_identifier fiber key.
+     */
+    function scanReelsPlayers() {
+        document.querySelectorAll('main > div > div').forEach((reelContainer) => {
+            const identifier = getValueByKey(reelContainer, 'PolarisClipsViewer_media_identifier');
+            if (!identifier || !identifier.code) return;
+            const video = reelContainer.querySelector('video');
+            if (!video) return;
+            attachOverlayButton(video.parentElement, () => ({
+                kind: 'post',
+                shortcode: identifier.code,
+                mediaId: null,
+                index: 0,
+            }));
+        });
+    }
+
+    const reelsObserver = new MutationObserver(debounce(scanReelsPlayers, Math.floor(1000 / 60)));
+
+    navigation.addEventListener('navigate', (e) => {
+        const url = new URL(e.destination.url);
+        if (url.pathname.match(/\/(reels)\/([A-Za-z0-9_-]*)(\/?)/)) {
+            reelsObserver.observe(document.body, { childList: true, subtree: true });
+            scanReelsPlayers();
+        } else {
+            reelsObserver.disconnect();
+        }
+    });
+    if (window.location.pathname.match(/\/(reels)\/([A-Za-z0-9_-]*)(\/?)/)) {
+        reelsObserver.observe(document.body, { childList: true, subtree: true });
+        scanReelsPlayers();
+    }
 })();
