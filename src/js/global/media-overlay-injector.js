@@ -122,4 +122,60 @@
     const postPageObserver = new MutationObserver(scanPostPageOrModal);
     postPageObserver.observe(document.body, { childList: true, subtree: true });
     scanPostPageOrModal();
+
+    /**
+     * Home feed: unlike the dedicated page/modal, the URL stays "/" no matter
+     * which post is showing, so each article's shortcode has to come from its
+     * own ReactFiber (same lookup home-scroll-handler.js already relies on).
+     */
+    function scanPostArticle(article) {
+        const postInfo = getValueByKey(article, 'queryReference');
+        if (!postInfo || !postInfo.code) return;
+        const ul = article.querySelector('ul');
+        const anchor = ul ? ul.parentElement : null;
+        if (!anchor) return;
+        attachOverlayButton(anchor, () => ({
+            kind: 'post',
+            shortcode: postInfo.code,
+            mediaId: resolveActiveMediaId(article),
+            index: 0,
+        }));
+    }
+
+    function debounce(fn, delay) {
+        let timeoutId;
+        return (...args) => {
+            clearTimeout(timeoutId);
+            timeoutId = setTimeout(() => fn(...args), delay);
+        };
+    }
+
+    function scanFeedArticles() {
+        const main = document.querySelector('main');
+        if (!main) return;
+        main.querySelectorAll('article').forEach(scanPostArticle);
+    }
+
+    const debouncedFeedScan = debounce(scanFeedArticles, Math.floor(1000 / 60));
+    const feedObserver = new MutationObserver(debouncedFeedScan);
+
+    function startFeedScan() {
+        const main = document.querySelector('main');
+        if (!main) return;
+        feedObserver.observe(main, { childList: true, subtree: true });
+        window.addEventListener('scroll', debouncedFeedScan);
+        scanFeedArticles();
+    }
+
+    function stopFeedScan() {
+        feedObserver.disconnect();
+        window.removeEventListener('scroll', debouncedFeedScan);
+    }
+
+    navigation.addEventListener('navigate', (e) => {
+        const url = new URL(e.destination.url);
+        if (url.pathname === '/') startFeedScan();
+        else stopFeedScan();
+    });
+    if (window.location.pathname === '/') startFeedScan();
 })();
