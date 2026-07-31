@@ -242,4 +242,68 @@
         reelsObserver.observe(document.body, { childList: true, subtree: true });
         scanReelsPlayers();
     }
+
+    /**
+     * Stories & Highlights: Instagram updates the URL to
+     * /stories/:username/:framePk/ as you move between frames of the same
+     * story, so (unlike posts) the active frame's pk can be read straight
+     * from the pathname instead of any DOM/fiber inspection. On the very
+     * first frame the pk segment isn't in the URL yet, which conveniently
+     * matches the index-0 fallback. Highlights don't expose a frame pk this
+     * way (their URL only carries the highlight id), so highlights always
+     * fall back to index 0 (the first frame) - a known limitation.
+     */
+    const IG_STORY_REGEX_MAIN = /\/(stories)\/(.*?)\/(\d*)(\/?)/;
+    const IG_HIGHLIGHT_REGEX_MAIN = /\/(stories)\/(highlights)\/(\d*)(\/?)/;
+
+    function scanStoriesViewer() {
+        if (!window.location.pathname.match(IG_STORY_REGEX_MAIN)) return;
+        const section = Array.from(document.querySelectorAll('section')).pop();
+        if (!section) return;
+        const video = section.querySelector('video');
+        const bigImg = Array.from(section.querySelectorAll('img')).find(
+            (img) => img.getBoundingClientRect().width > 100,
+        );
+        const mediaEl = video || bigImg;
+        if (!mediaEl || !mediaEl.parentElement) return;
+        const anchor = mediaEl.parentElement;
+        const highlightMatch = window.location.pathname.match(IG_HIGHLIGHT_REGEX_MAIN);
+        if (highlightMatch) {
+            const highlightId = highlightMatch[3];
+            attachOverlayButton(anchor, () => ({
+                kind: 'highlight',
+                highlightId,
+                mediaId: null,
+                index: 0,
+            }));
+            return;
+        }
+        const username = getValueByKey(section, 'username');
+        if (!username) return;
+        attachOverlayButton(anchor, () => {
+            const frameMatch = window.location.pathname.match(IG_STORY_REGEX_MAIN);
+            return {
+                kind: 'stories',
+                username,
+                mediaId: frameMatch && frameMatch[3] ? frameMatch[3] : null,
+                index: 0,
+            };
+        });
+    }
+
+    const storiesObserver = new MutationObserver(debounce(scanStoriesViewer, Math.floor(1000 / 60)));
+
+    navigation.addEventListener('navigate', (e) => {
+        const url = new URL(e.destination.url);
+        if (url.pathname.match(IG_STORY_REGEX_MAIN)) {
+            storiesObserver.observe(document.body, { childList: true, subtree: true });
+            setTimeout(scanStoriesViewer, 0);
+        } else {
+            storiesObserver.disconnect();
+        }
+    });
+    if (window.location.pathname.match(IG_STORY_REGEX_MAIN)) {
+        storiesObserver.observe(document.body, { childList: true, subtree: true });
+        scanStoriesViewer();
+    }
 })();
