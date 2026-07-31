@@ -178,4 +178,32 @@
         else stopFeedScan();
     });
     if (window.location.pathname === '/') startFeedScan();
+
+    /**
+     * Profile grid & Explore grid: thumbnails are plain <a href="/.../p/:code/">
+     * links with no visible carousel navigation, so the shortcode comes
+     * straight from the href and the download is always the cover (index 0).
+     */
+    function extractShortcodeFromHref(href) {
+        const match = new URL(href, window.location.origin).pathname.match(IG_POST_REGEX_MAIN);
+        return match ? match[2] : null;
+    }
+
+    function scanGridLinks() {
+        document.querySelectorAll('a[href*="/p/"], a[href*="/reel/"]').forEach((link) => {
+            const shortcode = extractShortcodeFromHref(link.href);
+            if (!shortcode) return;
+            if (!link.querySelector('img, video')) return;
+            attachOverlayButton(link, () => ({
+                kind: 'post',
+                shortcode,
+                mediaId: null,
+                index: 0,
+            }));
+        });
+    }
+
+    const gridObserver = new MutationObserver(debounce(scanGridLinks, Math.floor(1000 / 60)));
+    gridObserver.observe(document.body, { childList: true, subtree: true });
+    scanGridLinks();
 })();
