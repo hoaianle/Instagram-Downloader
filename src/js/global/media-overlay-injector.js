@@ -57,6 +57,24 @@
     });
 
     /**
+     * Removes any previously-attached anchor/button inside `scopeEl` other
+     * than `keepAnchor`. Needed because the "best" media element can change
+     * across rescans of the same scope (e.g. a story's real video mounts a
+     * moment after its avatar was the only thing rendered yet, or Instagram
+     * swaps the DOM node for a new carousel slide) - without this, the old,
+     * now-wrong anchor would keep its button forever since attaching is
+     * normally a one-time, idempotent operation per container.
+     */
+    function cleanupStaleAnchors(scopeEl, keepAnchor) {
+        scopeEl.querySelectorAll('.igd-media-anchor').forEach((el) => {
+            if (el === keepAnchor) return;
+            el.classList.remove('igd-media-anchor');
+            const staleBtn = el.querySelector(':scope > .igd-media-download-btn');
+            if (staleBtn) staleBtn.remove();
+        });
+    }
+
+    /**
      * Attaches a download button to `mediaContainer` (the element that gets
      * position:relative so the button anchors top-left of the media, not the
      * page) unless one is already attached.
@@ -64,10 +82,11 @@
      * `resolveDetail` is called at click time (not attach time) so it always
      * reflects the currently-visible slide/frame.
      */
-    function attachOverlayButton(mediaContainer, resolveDetail) {
+    function attachOverlayButton(mediaContainer, resolveDetail, extraButtonClass) {
         if (mediaContainer.querySelector(':scope > .igd-media-download-btn')) return;
         mediaContainer.classList.add('igd-media-anchor');
         const button = createDownloadButton();
+        if (extraButtonClass) button.classList.add(extraButtonClass);
         button.addEventListener('click', (e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -95,21 +114,79 @@
     }
 
     /**
-     * Finds the pk of the currently-visible slide inside `scopeEl`'s carousel
-     * (if any). Instagram virtualizes carousel slides as `<li>` elements
-     * inside a `<ul>`, positioning the active one at `transform: translateX(0`
-     * and the others off to the sides. The active slide's own `<img>`/`<video>`
-     * carries its media `pk` directly on its React fiber.
+     * Finds the currently-visible media element inside `scopeEl` for a
+     * non-carousel post/frame (single image/video). Picks the largest
+     * rendered `<img>`/`<video>`, which reliably beats small decorative
+     * images (e.g. the poster's avatar) - safe here specifically because
+     * there's only ever one real piece of media to find.
      */
-    function resolveActiveMediaId(scopeEl) {
+    function findActiveMediaElement(scopeEl) {
+        const candidates = Array.from(scopeEl.querySelectorAll('video, img'));
+        let best = null;
+        let bestArea = 0;
+        candidates.forEach((el) => {
+            const rect = el.getBoundingClientRect();
+            const area = rect.width * rect.height;
+            if (area > bestArea) {
+                bestArea = area;
+                best = el;
+            }
+        });
+        return best;
+    }
+
+    /**
+     * Finds the currently-active slide's media element for a carousel post.
+     * Instagram can render several neighboring slides at full natural size
+     * simultaneously (just translated out of the visible clipping area), so
+     * "largest rendered area" alone can't tell them apart - only the slide
+     * whose `<li>` sits at `transform: translateX(0` is actually the one on
+     * screen. Falls back to `findActiveMediaElement` for non-carousel posts
+     * (no `<ul>` at all).
+     */
+    function findActiveSlideMediaElement(scopeEl) {
         const ul = scopeEl.querySelector('ul');
-        if (!ul) return null;
-        const activeLi = Array.from(ul.querySelectorAll('li')).find((li) =>
-            (li.getAttribute('style') || '').includes('translateX(0'),
-        );
-        if (!activeLi) return null;
-        const mediaEl = activeLi.querySelector('img, video');
-        return mediaEl ? getValueByKey(mediaEl, 'pk') : null;
+        if (ul) {
+            const activeLi = Array.from(ul.querySelectorAll('li')).find((li) =>
+                (li.getAttribute('style') || '').includes('translateX(0'),
+            );
+            const mediaEl = activeLi ? activeLi.querySelector('img, video') : null;
+            if (mediaEl) return mediaEl;
+        }
+        return findActiveMediaElement(scopeEl);
+    }
+
+    /**
+     * Carousel dot indicators (aria-label="Go to slide N") expose an
+     * absolute, 0-indexed slide position via `aria-current="step"` on the
+     * active one - this is a more reliable index source than inferring it
+     * from `<li>` transforms, which can go stale immediately after the user
+     * advances the carousel (Instagram doesn't always re-render `<li>`
+     * offsets synchronously with the click). Not every context renders
+     * these dots (e.g. the dedicated post page doesn't), so callers must
+     * still fall back to `findActiveSlideMediaElement`'s pk-based guess.
+     */
+    function resolveDotIndex(scopeEl) {
+        const dots = Array.from(scopeEl.querySelectorAll('button[aria-label^="Go to slide"]'));
+        if (dots.length === 0) return null;
+        const activeIndex = dots.findIndex((dot) => dot.getAttribute('aria-current') === 'step');
+        return activeIndex === -1 ? null : activeIndex;
+    }
+
+    /**
+     * Instagram wraps media in several layers of zero/near-zero-width
+     * carousel-transform divs. Walk up from `startEl` until finding an
+     * ancestor that's actually sized like the visible media, so the button
+     * anchors somewhere hoverable/clickable instead of a 1px sliver.
+     */
+    function findSizedAnchor(startEl) {
+        let el = startEl;
+        for (let i = 0; i < 8 && el; i++) {
+            const rect = el.getBoundingClientRect();
+            if (rect.width > 10 && rect.height > 10) return el;
+            el = el.parentElement;
+        }
+        return startEl;
     }
 
     /**
@@ -125,15 +202,19 @@
         const dialog = document.querySelector('div[role="dialog"]');
         const scope = dialog || document.querySelector('main');
         if (!scope) return;
-        const ul = scope.querySelector('ul');
-        const anchor = ul ? ul.parentElement : null;
-        if (!anchor) return;
-        attachOverlayButton(anchor, () => ({
-            kind: 'post',
-            shortcode,
-            mediaId: resolveActiveMediaId(scope),
-            index: 0,
-        }));
+        const mediaEl = findActiveSlideMediaElement(scope);
+        if (!mediaEl) return;
+        const anchor = findSizedAnchor(mediaEl);
+        cleanupStaleAnchors(scope, anchor);
+        attachOverlayButton(anchor, () => {
+            const dotIndex = resolveDotIndex(scope);
+            return {
+                kind: 'post',
+                shortcode,
+                mediaId: dotIndex === null ? getValueByKey(findActiveSlideMediaElement(scope), 'pk') : null,
+                index: dotIndex === null ? 0 : dotIndex,
+            };
+        });
     }
 
     const postPageObserver = new MutationObserver(scanPostPageOrModal);
@@ -148,15 +229,19 @@
     function scanPostArticle(article) {
         const postInfo = getValueByKey(article, 'queryReference');
         if (!postInfo || !postInfo.code) return;
-        const ul = article.querySelector('ul');
-        const anchor = ul ? ul.parentElement : null;
-        if (!anchor) return;
-        attachOverlayButton(anchor, () => ({
-            kind: 'post',
-            shortcode: postInfo.code,
-            mediaId: resolveActiveMediaId(article),
-            index: 0,
-        }));
+        const mediaEl = findActiveSlideMediaElement(article);
+        if (!mediaEl) return;
+        const anchor = findSizedAnchor(mediaEl);
+        cleanupStaleAnchors(article, anchor);
+        attachOverlayButton(anchor, () => {
+            const dotIndex = resolveDotIndex(article);
+            return {
+                kind: 'post',
+                shortcode: postInfo.code,
+                mediaId: dotIndex === null ? getValueByKey(findActiveSlideMediaElement(article), 'pk') : null,
+                index: dotIndex === null ? 0 : dotIndex,
+            };
+        });
     }
 
     function debounce(fn, delay) {
@@ -181,7 +266,15 @@
 
     function observeNewArticles(main) {
         main.querySelectorAll('article').forEach((article) => {
-            if (article.dataset.igdObserved) return;
+            if (article.dataset.igdObserved) {
+                // Already tracked: re-scan directly rather than waiting on
+                // another intersection change, since Instagram can replace
+                // the carousel's active <li>/media node (e.g. on slide
+                // navigation) without the article itself entering/leaving
+                // the viewport, which would otherwise leave the button gone.
+                scanPostArticle(article);
+                return;
+            }
             article.dataset.igdObserved = 'true';
             feedIntersectionObserver.observe(article);
         });
@@ -312,35 +405,40 @@
         if (!window.location.pathname.match(IG_STORY_REGEX_MAIN)) return;
         const section = Array.from(document.querySelectorAll('section')).pop();
         if (!section) return;
-        const video = section.querySelector('video');
-        const bigImg = Array.from(section.querySelectorAll('img')).find(
-            (img) => img.getBoundingClientRect().width > 100,
-        );
-        const mediaEl = video || bigImg;
-        if (!mediaEl || !mediaEl.parentElement) return;
-        const anchor = mediaEl.parentElement;
+        const mediaEl = findActiveMediaElement(section);
+        if (!mediaEl) return;
+        const anchor = findSizedAnchor(mediaEl);
+        cleanupStaleAnchors(section, anchor);
         const highlightMatch = window.location.pathname.match(IG_HIGHLIGHT_REGEX_MAIN);
         if (highlightMatch) {
             const highlightId = highlightMatch[3];
-            attachOverlayButton(anchor, () => ({
-                kind: 'highlight',
-                highlightId,
-                mediaId: null,
-                index: 0,
-            }));
+            attachOverlayButton(
+                anchor,
+                () => ({
+                    kind: 'highlight',
+                    highlightId,
+                    mediaId: null,
+                    index: 0,
+                }),
+                'igd-story-position',
+            );
             return;
         }
         const username = getValueByKey(section, 'username');
         if (!username) return;
-        attachOverlayButton(anchor, () => {
-            const frameMatch = window.location.pathname.match(IG_STORY_REGEX_MAIN);
-            return {
-                kind: 'stories',
-                username,
-                mediaId: frameMatch && frameMatch[3] ? frameMatch[3] : null,
-                index: 0,
-            };
-        });
+        attachOverlayButton(
+            anchor,
+            () => {
+                const frameMatch = window.location.pathname.match(IG_STORY_REGEX_MAIN);
+                return {
+                    kind: 'stories',
+                    username,
+                    mediaId: frameMatch && frameMatch[3] ? frameMatch[3] : null,
+                    index: 0,
+                };
+            },
+            'igd-story-position',
+        );
     }
 
     const storiesObserver = new MutationObserver(debounce(scanStoriesViewer, Math.floor(1000 / 60)));
