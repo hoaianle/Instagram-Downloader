@@ -9,7 +9,16 @@
     // functions/observers referenced here are only *called* once 'navigate'
     // actually fires, by which point the whole script below has finished
     // initializing them.
-    navigation.addEventListener('navigate', () => {
+    navigation.addEventListener('navigate', (e) => {
+        // Our own overlay downloads click a detached <a download> pointing at
+        // a blob: URL, which the Navigation API reports as a real 'navigate'
+        // event (destination.url is the blob URL, downloadRequest is set).
+        // Treating that as an SPA navigation away from the current page would
+        // disconnect every observer below without ever reconnecting them
+        // (the URL never actually becomes '/' or whatever it "navigated" to
+        // afterwards) - permanently breaking overlay rescans after the very
+        // first download.
+        if (e.downloadRequest !== null) return;
         feedObserver.disconnect();
         feedIntersectionObserver.disconnect();
         gridObserver.disconnect();
@@ -313,6 +322,7 @@
     }
 
     navigation.addEventListener('navigate', (e) => {
+        if (e.downloadRequest !== null) return;
         const url = new URL(e.destination.url);
         if (url.pathname === '/') startFeedScan();
         else stopFeedScan();
@@ -385,6 +395,7 @@
     const reelsObserver = new MutationObserver(debounce(scanReelsPlayers, Math.floor(1000 / 60)));
 
     navigation.addEventListener('navigate', (e) => {
+        if (e.downloadRequest !== null) return;
         const url = new URL(e.destination.url);
         if (url.pathname.match(/\/(reels)\/([A-Za-z0-9_-]*)(\/?)/)) {
             reelsObserver.observe(document.body, { childList: true, subtree: true });
@@ -454,6 +465,7 @@
     const storiesObserver = new MutationObserver(debounce(scanStoriesViewer, Math.floor(1000 / 60)));
 
     navigation.addEventListener('navigate', (e) => {
+        if (e.downloadRequest !== null) return;
         const url = new URL(e.destination.url);
         if (url.pathname.match(IG_STORY_REGEX_MAIN)) {
             storiesObserver.observe(document.body, { childList: true, subtree: true });
