@@ -121,21 +121,45 @@
 
     /**
      * Finds the currently-active slide's media element for a carousel post.
-     * Instagram can render several neighboring slides at full natural size
-     * simultaneously (just translated out of the visible clipping area), so
-     * "largest rendered area" alone can't tell them apart - only the slide
-     * whose `<li>` sits at `transform: translateX(0` is actually the one on
-     * screen. Falls back to `findActiveMediaElement` for non-carousel posts
-     * (no `<ul>` at all).
+     * Each `<li>` has a fixed `transform: translateX(<n>px)` representing its
+     * static position in the strip (slide 1 is always at 0, slide 2 at the
+     * slide width, etc.) - which slide is actually *visible* is controlled
+     * separately, by the nearest scrollable ancestor's `scrollLeft`. The
+     * active `<li>` is therefore the one whose own translateX matches that
+     * ancestor's scrollLeft, not simply "whichever li has translateX(0)"
+     * (that's only true for the first slide). Falls back to
+     * `findActiveMediaElement` for non-carousel posts (no `<ul>` at all) or
+     * if no scrollable ancestor/matching li is found.
      */
     function findActiveSlideMediaElement(scopeEl) {
         const ul = scopeEl.querySelector('ul');
         if (ul) {
-            const activeLi = Array.from(ul.querySelectorAll('li')).find((li) =>
-                (li.getAttribute('style') || '').includes('translateX(0'),
-            );
-            const mediaEl = activeLi ? activeLi.querySelector('img, video') : null;
-            if (mediaEl) return mediaEl;
+            const lis = Array.from(ul.querySelectorAll('li')).filter((li) => li.querySelector('img, video'));
+            if (lis.length) {
+                let scrollContainer = ul.parentElement;
+                for (let i = 0; i < 6 && scrollContainer; i++) {
+                    const overflowX = getComputedStyle(scrollContainer).overflowX;
+                    if (
+                        (overflowX === 'auto' || overflowX === 'scroll') &&
+                        scrollContainer.scrollWidth > scrollContainer.clientWidth
+                    ) {
+                        break;
+                    }
+                    scrollContainer = scrollContainer.parentElement;
+                }
+                const scrollLeft = scrollContainer ? scrollContainer.scrollLeft : 0;
+                const activeLi = lis.reduce((closest, li) => {
+                    const match = (li.getAttribute('style') || '').match(/translateX\((-?\d+(?:\.\d+)?)px\)/);
+                    const liOffset = match ? parseFloat(match[1]) : Infinity;
+                    const closestMatch = (closest.getAttribute('style') || '').match(
+                        /translateX\((-?\d+(?:\.\d+)?)px\)/,
+                    );
+                    const closestOffset = closestMatch ? parseFloat(closestMatch[1]) : Infinity;
+                    return Math.abs(liOffset - scrollLeft) < Math.abs(closestOffset - scrollLeft) ? li : closest;
+                }, lis[0]);
+                const mediaEl = activeLi.querySelector('img, video');
+                if (mediaEl) return mediaEl;
+            }
         }
         return findActiveMediaElement(scopeEl);
     }
