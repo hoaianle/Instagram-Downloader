@@ -21,7 +21,6 @@
                 "src/js/main.js",
                 "src/js/post.js",
                 "src/js/story.js",
-                "src/js/zip.js",
                 "src/js/media-overlay-handler.js",
                 "lib/js.cookie.min.js"
             ],

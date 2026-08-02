@@ -1,23 +1,7 @@
-async function getUserIdFromSearch(username) {
-    if (appCache.userIdsCache.has(username)) return appCache.userIdsCache.get(username);
-    const apiURL = new URL('/web/search/topsearch/', IG_BASE_URL);
-    if (username) apiURL.searchParams.set('query', username);
-    else apiURL.searchParams.set('query', appState.current.username);
-    try {
-        const respone = await fetch(apiURL.href);
-        const json = await respone.json();
-        return json.users[0].user['pk_id'];
-    } catch (error) {
-        console.log(error);
-        return '';
-    }
-}
-
 async function getUserId(username) {
     if (appCache.userIdsCache.has(username)) return appCache.userIdsCache.get(username);
     const apiURL = new URL('/api/v1/users/web_profile_info/', IG_BASE_URL);
-    if (username) apiURL.searchParams.set('username', username);
-    else apiURL.searchParams.set('username', appState.current.username);
+    apiURL.searchParams.set('username', username);
     try {
         const respone = await fetch(apiURL.href, getFetchOptions());
         const json = await respone.json();
@@ -100,13 +84,4 @@ async function fetchHighlightMediaData(highlightsId) {
     const data = extractStoryMediaData(json);
     appCache.mediaDataCache.set(cacheKey, data);
     return data;
-}
-
-async function downloadStoryPhotos(type = 'stories') {
-    if (type === 'highlights') {
-        if (!appState.current.highlights) return null;
-        return fetchHighlightMediaData(appState.current.highlights);
-    }
-    if (!appState.current.username) return null;
-    return fetchStoryMediaData(appState.current.username);
 }

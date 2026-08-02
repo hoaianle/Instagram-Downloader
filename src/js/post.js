@@ -19,8 +19,8 @@ function convertToShortcode(postId) {
     return shortcode;
 }
 
-async function getPostIdFromApi() {
-    const cachedPostId = appCache.postIdInfoCache.get(appState.current.shortcode);
+async function getPostIdFromApi(shortcode) {
+    const cachedPostId = appCache.postIdInfoCache.get(shortcode);
     if (cachedPostId) return cachedPostId;
     const apiURL = new URL('/graphql/query/', IG_BASE_URL);
     const fetchOptions = getFetchOptions();
@@ -32,7 +32,7 @@ async function getPostIdFromApi() {
         fb_api_req_friendly_name: 'PolarisPostActionLoadPostQueryQuery',
         doc_id: '8845758582119845',
         variables: JSON.stringify({
-            shortcode: appState.current.shortcode,
+            shortcode,
         }),
     }).toString();
     try {
@@ -52,7 +52,7 @@ async function getPostPhotos(shortcode) {
         setPreferredMediaResolutionCookies();
         let respone = await fetch(apiURL.href, getFetchOptions());
         if (respone.status === 400) {
-            const postId = await getPostIdFromApi();
+            const postId = await getPostIdFromApi(shortcode);
             if (!postId) throw new Error('Network bug');
             const apiURL = new URL(`/api/v1/media/${postId}/info/`, IG_BASE_URL);
             respone = await fetch(apiURL.href, getFetchOptions());
@@ -95,9 +95,4 @@ async function fetchPostMediaData(shortcode) {
     else data.media.push(extractMediaData(json));
     appCache.mediaDataCache.set(cacheKey, data);
     return data;
-}
-
-async function downloadPostPhotos() {
-    if (!appState.current.shortcode) return null;
-    return fetchPostMediaData(appState.current.shortcode);
 }
