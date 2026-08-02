@@ -87,6 +87,7 @@ async function downloadPostPhotos() {
             url: largestMediaItem.url,
             isVideo,
             id: item.pk,
+            format: resolveMediaFormat(largestMediaItem.url) ?? (isVideo ? 'mp4' : 'jpg'),
         };
         return media;
     }

@@ -95,7 +95,7 @@ async function saveZip() {
                     title: media.title.replaceAll(' | ', '_'),
                     data: blob,
                 };
-                data.title = media.nodeName === 'VIDEO' ? `${data.title}.mp4` : `${data.title}.jpeg`;
+                data.title = `${data.title}.${media.getAttribute('data-format')}`;
                 count++;
                 DOWNLOAD_BUTTON.textContent = `${count}/${media.length}`;
                 return data;
@@ -220,6 +220,7 @@ function renderMedia(data) {
             src: item.url,
             title: `${data.user.username} | ${item.id} | ${date}`,
             controls: '',
+            'data-format': item.format,
         };
         const ITEM_TEMPLATE = `<div>
 				${item.isVideo ? `<video></video>` : '<img/>'}
@@ -236,7 +237,10 @@ function renderMedia(data) {
             if (TITLE_CONTAINER.classList.contains('multi-select')) {
                 if (item.isVideo) e.preventDefault();
                 selectBox.classList.toggle('checked');
-            } else saveMedia(media, media.title.replaceAll(' | ', '_') + `${item.isVideo ? '.mp4' : '.jpeg'}`);
+            } else {
+                const filename = media.title.replaceAll(' | ', '_') + `.${item.format}`;
+                saveMedia(media, filename);
+            }
         });
         fragment.appendChild(itemDOM);
     });
@@ -273,5 +277,16 @@ function isValidJson(string) {
         return true;
     } catch {
         return false;
+    }
+}
+
+function resolveMediaFormat(mediaUrl) {
+    try {
+        const pathname = new URL(mediaUrl).pathname;
+        const filename = pathname.split('/').pop() || '';
+        const match = filename.match(/\.([a-z0-9]+)$/i);
+        return match ? match[1].toLowerCase() : null;
+    } catch {
+        return null;
     }
 }

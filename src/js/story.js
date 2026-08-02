@@ -85,6 +85,7 @@ async function downloadStoryPhotos(type = 'stories') {
             url: largestMediaItem.url,
             isVideo: isVideo,
             id: item.pk,
+            format: resolveMediaFormat(largestMediaItem.url) ?? (isVideo ? 'mp4' : 'jpg'),
         };
         data.media.push(media);
     });
