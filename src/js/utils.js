@@ -95,7 +95,7 @@ async function saveZip() {
                     title: media.title.replaceAll(' | ', '_'),
                     data: blob,
                 };
-                data.title = media.nodeName === 'VIDEO' ? `${data.title}.mp4` : `${data.title}.jpeg`;
+                data.title = `${data.title}.${media.getAttribute('data-format')}`;
                 count++;
                 DOWNLOAD_BUTTON.textContent = `${count}/${media.length}`;
                 return data;
@@ -220,6 +220,7 @@ function renderMedia(data) {
             src: item.url,
             title: `${data.user.username} | ${item.id} | ${date}`,
             controls: '',
+            'data-format': item.format,
         };
         const ITEM_TEMPLATE = `<div>
 				${item.isVideo ? `<video></video>` : '<img/>'}
