@@ -94,22 +94,6 @@
             if (!detail) return;
             requestDownload(button, detail);
         });
-        // Touch fallback: first tap reveals the button instead of triggering
-        // Instagram's own handler underneath.
-        let touchRevealed = false;
-        mediaContainer.addEventListener(
-            'touchstart',
-            () => {
-                if (touchRevealed) return;
-                touchRevealed = true;
-                button.classList.add('igd-touch-visible');
-                setTimeout(() => {
-                    touchRevealed = false;
-                    button.classList.remove('igd-touch-visible');
-                }, 3000);
-            },
-            { passive: true },
-        );
         mediaContainer.appendChild(button);
     }
 
@@ -175,18 +159,20 @@
 
     /**
      * Instagram wraps media in several layers of zero/near-zero-width
-     * carousel-transform divs. Walk up from `startEl` until finding an
-     * ancestor that's actually sized like the visible media, so the button
-     * anchors somewhere hoverable/clickable instead of a 1px sliver.
+     * carousel-transform divs. Walk up from `startEl`'s parent until finding
+     * an ancestor that's both sized like the visible media AND not the
+     * `<img>`/`<video>` itself - those are replaced elements that never
+     * render appended child nodes, so an anchor on the media tag directly
+     * would leave the button in the DOM but permanently invisible.
      */
     function findSizedAnchor(startEl) {
-        let el = startEl;
+        let el = startEl.parentElement;
         for (let i = 0; i < 8 && el; i++) {
             const rect = el.getBoundingClientRect();
             if (rect.width > 10 && rect.height > 10) return el;
             el = el.parentElement;
         }
-        return startEl;
+        return startEl.parentElement || startEl;
     }
 
     /**

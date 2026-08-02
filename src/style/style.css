@@ -253,18 +253,13 @@
     background: rgba(0, 0, 0, 0.5);
     border: none;
     outline: none;
-    display: none;
+    display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
     z-index: 999;
     padding: 0;
     transition: background-color 0.15s ease;
-}
-
-.igd-media-anchor:hover .igd-media-download-btn,
-.igd-media-download-btn.igd-touch-visible {
-    display: flex;
 }
 
 /* Stories/Highlights already have their own header (avatar, username, audio
