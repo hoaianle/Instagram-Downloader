@@ -10,6 +10,8 @@
 
 .igd-media-anchor {
     position: relative !important;
+    z-index: 0;
+    isolation: isolate;
 }
 
 .igd-media-download-btn {
@@ -27,7 +29,7 @@
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    z-index: 999;
+    z-index: 2147483647;
     padding: 0;
     transition: background-color 0.15s ease;
 }
