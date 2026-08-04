@@ -433,33 +433,25 @@
         const highlightMatch = window.location.pathname.match(IG_HIGHLIGHT_REGEX_MAIN);
         if (highlightMatch) {
             const highlightId = highlightMatch[3];
-            attachOverlayButton(
-                anchor,
-                () => ({
-                    kind: 'highlight',
-                    highlightId,
-                    mediaId: null,
-                    index: 0,
-                }),
-                'igd-story-position',
-            );
+            attachOverlayButton(anchor, () => ({
+                kind: 'highlight',
+                highlightId,
+                mediaId: null,
+                index: 0,
+            }));
             return;
         }
         const username = getValueByKey(section, 'username');
         if (!username) return;
-        attachOverlayButton(
-            anchor,
-            () => {
-                const frameMatch = window.location.pathname.match(IG_STORY_REGEX_MAIN);
-                return {
-                    kind: 'stories',
-                    username,
-                    mediaId: frameMatch && frameMatch[3] ? frameMatch[3] : null,
-                    index: 0,
-                };
-            },
-            'igd-story-position',
-        );
+        attachOverlayButton(anchor, () => {
+            const frameMatch = window.location.pathname.match(IG_STORY_REGEX_MAIN);
+            return {
+                kind: 'stories',
+                username,
+                mediaId: frameMatch && frameMatch[3] ? frameMatch[3] : null,
+                index: 0,
+            };
+        });
     }
 
     const storiesObserver = new MutationObserver(debounce(scanStoriesViewer, Math.floor(1000 / 60)));

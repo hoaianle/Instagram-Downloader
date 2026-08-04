@@ -14,8 +14,9 @@
 
 .igd-media-download-btn {
     position: absolute;
-    top: 8px;
-    left: 8px;
+    bottom: 8px;
+    left: 50%;
+    transform: translateX(-50%);
     width: 30px;
     height: 30px;
     border-radius: 50%;
@@ -29,13 +30,6 @@
     z-index: 999;
     padding: 0;
     transition: background-color 0.15s ease;
-}
-
-/* Stories/Highlights already have their own header (avatar, username, audio
-   track, mute/pause) pinned at top-left - push the button below it so it
-   doesn't overlap and disappear behind Instagram's own controls. */
-.igd-media-download-btn.igd-story-position {
-    top: 72px;
 }
 
 .igd-media-download-btn:hover {
