@@ -70,7 +70,7 @@
     }
     navigation.addEventListener('navigate', (e) => {
         const url = new URL(e.destination.url);
-        if (url.pathname.startsWith === '/') startObserve();
+        if (url.pathname === '/') startObserve();
         else stopObserve();
     });
     if (window.location.pathname === '/') startObserve();
