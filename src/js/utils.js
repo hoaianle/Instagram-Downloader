@@ -83,19 +83,27 @@ async function saveZip() {
     DOWNLOAD_BUTTON.classList.add('loading');
     DOWNLOAD_BUTTON.textContent = 'Loading...';
     DOWNLOAD_BUTTON.disabled = true;
-    const media = Array.from(document.querySelectorAll('.overlay.checked')).map((item) => item.previousElementSibling);
-    const zipFileName = media[0].title.replaceAll(' | ', '_') + '.zip';
+    const date = new Date(appState.data.date * 1000).toISOString().split('T')[0];
+    const media = Array.from(appState.selected).map((index) => {
+        const item = appState.data.media[index];
+        return {
+            title: `${appState.data.user.username}_${item.id}_${date}`,
+            format: item.format,
+            url: item.url,
+        };
+    });
+    const zipFileName = `${media[0].title}.zip`;
     async function fetchSelectedMedia() {
         let count = 0;
         const results = await Promise.allSettled(
-            media.map(async (media) => {
-                const res = await fetch(media.src);
+            media.map(async (item) => {
+                const res = await fetch(item.url);
                 const blob = await res.blob();
                 const data = {
-                    title: media.title.replaceAll(' | ', '_'),
+                    title: item.title,
                     data: blob,
                 };
-                data.title = `${data.title}.${media.getAttribute('data-format')}`;
+                data.title = `${data.title}.${item.format}`;
                 count++;
                 DOWNLOAD_BUTTON.textContent = `${count}/${media.length}`;
                 return data;
@@ -107,12 +115,11 @@ async function saveZip() {
         return results.map((promise) => promise.value);
     }
     try {
-        const media = await fetchSelectedMedia();
-        const blob = await createZip(media);
+        const data = await fetchSelectedMedia();
+        const blob = await createZip(data);
         saveFile(blob, zipFileName);
-        document.querySelectorAll('.overlay').forEach((element) => {
-            element.classList.remove('checked');
-        });
+        appState.selected.clear();
+        updateSelectedMedia();
         resetDownloadState();
     } catch (error) {
         console.log(error);
@@ -184,15 +191,13 @@ function setDownloadState(state = 'ready') {
 
 async function handleDownload() {
     let data = null;
-    const TITLE_CONTAINER = document.querySelector('.title-container').firstElementChild;
     const DISPLAY_CONTAINER = document.querySelector('.display-container');
     const option = shouldDownload();
-    const totalItemChecked = Array.from(document.querySelectorAll('.overlay.checked'));
     if (
-        TITLE_CONTAINER.classList.contains('multi-select') &&
+        appState.isSelecting &&
         !DISPLAY_CONTAINER.classList.contains('hide') &&
         option === 'none' &&
-        totalItemChecked.length !== 0
+        appState.selected.size !== 0
     ) {
         return saveZip();
     }
@@ -207,14 +212,26 @@ async function handleDownload() {
     renderMedia(data);
 }
 
+function updateSelectedMedia() {
+    const TITLE_CONTAINER = document.querySelector('.title-container').firstElementChild;
+    const DISPLAY_CONTAINER = document.querySelector('.display-container');
+    if (appState.isSelecting) {
+        TITLE_CONTAINER.textContent = `Selected ${appState.selected.size} / ${appState.data?.media.length ?? 0}`;
+    }
+    DISPLAY_CONTAINER.querySelectorAll('.media-item').forEach((media, index) => {
+        media.parentElement.querySelector('.overlay').classList.toggle('checked', appState.selected.has(index));
+    });
+}
+
 function renderMedia(data) {
     const TITLE_CONTAINER = document.querySelector('.title-container').firstElementChild;
     const MEDIA_CONTAINER = document.querySelector('.media-container');
     MEDIA_CONTAINER.replaceChildren();
+    appState.data = data;
     if (!data) return;
     const fragment = document.createDocumentFragment();
     const date = new Date(data.date * 1000).toISOString().split('T')[0];
-    data.media.forEach((item) => {
+    data.media.forEach((item, index) => {
         const attributes = {
             class: 'media-item',
             src: item.url,
@@ -228,15 +245,15 @@ function renderMedia(data) {
 			</div>`;
         const itemDOM = new DOMParser().parseFromString(ITEM_TEMPLATE, 'text/html').body.firstElementChild;
         const media = itemDOM.querySelector('img, video');
-        const selectBox = itemDOM.querySelector('.overlay');
         Object.keys(attributes).forEach((key) => {
             if (item.isVideo) media.setAttribute(key, attributes[key]);
             else if (key !== 'controls') media.setAttribute(key, attributes[key]);
         });
         media.addEventListener('click', (e) => {
-            if (TITLE_CONTAINER.classList.contains('multi-select')) {
+            if (appState.isSelecting) {
                 if (item.isVideo) e.preventDefault();
-                selectBox.classList.toggle('checked');
+                appState.toggleSelected(index);
+                updateSelectedMedia();
             } else {
                 const filename = media.title.replaceAll(' | ', '_') + `.${item.format}`;
                 saveMedia(media, filename);
@@ -245,7 +262,8 @@ function renderMedia(data) {
         fragment.appendChild(itemDOM);
     });
     MEDIA_CONTAINER.appendChild(fragment);
-    TITLE_CONTAINER.classList.remove('multi-select');
+    TITLE_CONTAINER.textContent = 'Media';
+    TITLE_CONTAINER.title = APP_NAME;
     setDownloadState('success');
 }
 
