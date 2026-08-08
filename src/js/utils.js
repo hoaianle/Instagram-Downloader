@@ -78,6 +78,22 @@ async function saveMedia(media, fileName) {
     }
 }
 
+async function saveAllSelected() {
+    const { data } = appState;
+    const date = new Date(data.date * 1000).toISOString().split('T')[0];
+    for (const index of appState.selected) {
+        const item = data.media[index];
+        try {
+            const respone = await fetch(item.url);
+            const blob = await respone.blob();
+            const title = `${data.user.username} | ${item.id} | ${date}`;
+            saveFile(blob, title.replaceAll(' | ', '_') + `.${item.format}`);
+        } catch (error) {
+            console.log(error);
+        }
+    }
+}
+
 async function saveZip() {
     const DOWNLOAD_BUTTON = document.querySelector('.download-button');
     DOWNLOAD_BUTTON.classList.add('loading');
@@ -193,14 +209,6 @@ async function handleDownload() {
     let data = null;
     const DISPLAY_CONTAINER = document.querySelector('.display-container');
     const option = shouldDownload();
-    if (
-        appState.isSelecting &&
-        !DISPLAY_CONTAINER.classList.contains('hide') &&
-        option === 'none' &&
-        appState.selected.size !== 0
-    ) {
-        return saveZip();
-    }
     requestAnimationFrame(() => {
         DISPLAY_CONTAINER.classList.remove('hide');
     });
@@ -215,9 +223,14 @@ async function handleDownload() {
 function updateSelectedMedia() {
     const TITLE_CONTAINER = document.querySelector('.title-container').firstElementChild;
     const DISPLAY_CONTAINER = document.querySelector('.display-container');
+    const GROUP_DOWNLOAD_MEDIA = document.querySelector('.group-download-media');
+    const DOWNLOAD_BUTTON = document.querySelector('.download-button');
     if (appState.isSelecting) {
         TITLE_CONTAINER.textContent = `Selected ${appState.selected.size} / ${appState.data?.media.length ?? 0}`;
     }
+    const isZipSelecting = appState.isSelecting && appState.selected.size > 0;
+    GROUP_DOWNLOAD_MEDIA.classList.toggle('hide', !isZipSelecting);
+    DOWNLOAD_BUTTON.classList.toggle('hide', isZipSelecting);
     DISPLAY_CONTAINER.querySelectorAll('.media-item').forEach((media, index) => {
         media.parentElement.querySelector('.overlay').classList.toggle('checked', appState.selected.has(index));
     });
@@ -228,7 +241,10 @@ function renderMedia(data) {
     const MEDIA_CONTAINER = document.querySelector('.media-container');
     MEDIA_CONTAINER.replaceChildren();
     appState.data = data;
-    if (!data) return;
+    if (!data) {
+        updateSelectedMedia();
+        return;
+    }
     const fragment = document.createDocumentFragment();
     const date = new Date(data.date * 1000).toISOString().split('T')[0];
     data.media.forEach((item, index) => {
@@ -264,6 +280,7 @@ function renderMedia(data) {
     MEDIA_CONTAINER.appendChild(fragment);
     TITLE_CONTAINER.textContent = 'Media';
     TITLE_CONTAINER.title = APP_NAME;
+    updateSelectedMedia();
     setDownloadState('success');
 }
 

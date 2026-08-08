@@ -190,6 +190,51 @@
     background-color: rgb(var(--ig-colors-button-primary-background--pressed));
 }
 
+.download-button.hide {
+    display: none;
+}
+
+.group-download-media.hide {
+    display: none;
+}
+
+.group-download-media > button {
+    width: 120px;
+    height: 30px;
+    color: rgb(var(--ig-primary-text));
+    outline: none;
+    font-family: var(--font-family-system);
+    font-size: var(--system-16-font-size);
+    font-weight: 600;
+    border: none;
+    position: fixed;
+    bottom: 100px;
+    inset-inline-end: 34px;
+    text-align: center;
+    user-select: none;
+    -webkit-user-select: none;
+    cursor: pointer;
+    background-color: rgb(var(--ig-secondary-background));
+    transition: 0.3s ease;
+    box-shadow: 0 4px 12px 0 var(--shadow-2);
+}
+
+.group-download-media > button:hover {
+    background-color: rgb(var(--ig-colors-button-primary-background));
+    color: white;
+}
+
+.group-download-media > button:first-child {
+    border-radius: 15px 0px 0px 15px;
+    inset-inline-end: calc(34px + 120px);
+    border-right: 1px solid rgb(var(--ig-separator));
+}
+
+.group-download-media > button:last-child {
+    border-radius: 0px 15px 15px 0px;
+    inset-inline-end: 34px;
+}
+
 /* Support bottom navigation */
 @media (max-width: 767px) {
     .download-button {

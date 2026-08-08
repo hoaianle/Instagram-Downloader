@@ -169,7 +169,11 @@ const appState = Object.freeze(
                         </p>
                     </div>
                 </div>
-                <button title="Shift+D" class="download-button">Download</button>`,
+                <button title="Shift+D" class="download-button">Download</button>
+                <div class="group-download-media hide">
+                    <button>Save as zip</button>
+                    <button>Save all</button>
+                </div>`,
             ),
         );
     }
@@ -178,6 +182,7 @@ const appState = Object.freeze(
         const TITLE_CONTAINER = document.querySelector('.title-container').firstElementChild;
         const DISPLAY_CONTAINER = document.querySelector('.display-container');
         const DOWNLOAD_BUTTON = document.querySelector('.download-button');
+        const GROUP_DOWNLOAD_MEDIA = document.querySelector('.group-download-media');
         const IGNORE_FOCUS_ELEMENTS = ['INPUT', 'TEXTAREA'];
         const ESC_EVENT_KEYS = ['Escape', 'C'];
         const DOWNLOAD_EVENT_KEYS = ['D'];
@@ -303,6 +308,16 @@ const appState = Object.freeze(
         });
         handleLongClick(TITLE_CONTAINER, () => toggleSelectMode(), handleSelectAll);
         DOWNLOAD_BUTTON.addEventListener('click', handleDownload);
+        GROUP_DOWNLOAD_MEDIA.querySelector('button:first-child')?.addEventListener('click', () => {
+            if (appState.isSelecting && appState.selected.size !== 0) {
+                saveZip();
+            }
+        });
+        GROUP_DOWNLOAD_MEDIA.querySelector('button:last-child')?.addEventListener('click', () => {
+            if (appState.isSelecting && appState.selected.size !== 0) {
+                saveAllSelected();
+            }
+        });
         window.addEventListener('online', () => {
             DISPLAY_CONTAINER.querySelectorAll('img , video').forEach((media) => {
                 media.src = media.src;
@@ -332,8 +347,14 @@ const appState = Object.freeze(
                 currentPath.match(IG_HIGHLIGHT_REGEX)
             ) {
                 DOWNLOAD_BUTTON.setAttribute('style', 'z-index: 1000000;');
+                GROUP_DOWNLOAD_MEDIA.querySelectorAll('button').forEach((button) => {
+                    button.setAttribute('style', 'z-index: 1000000;');
+                });
             } else {
                 DOWNLOAD_BUTTON.removeAttribute('style');
+                GROUP_DOWNLOAD_MEDIA.querySelectorAll('button').forEach((button) => {
+                    button.removeAttribute('style');
+                });
             }
         });
         window.addEventListener('userLoad', (e) => {
