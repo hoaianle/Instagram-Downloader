@@ -205,7 +205,9 @@ function setDownloadState(state = 'ready') {
     options[state]();
 }
 
-async function handleDownload() {
+async function handleDownload(e) {
+    e.preventDefault();
+    e.stopPropagation();
     let data = null;
     const DISPLAY_CONTAINER = document.querySelector('.display-container');
     const option = shouldDownload();
@@ -220,17 +222,21 @@ async function handleDownload() {
     renderMedia(data);
 }
 
+function updateButtonVisibility() {
+    const GROUP_DOWNLOAD_MEDIA = document.querySelector('.group-download-media');
+    const DOWNLOAD_BUTTON = document.querySelector('.download-button');
+    const isZipSelecting = appState.isSelecting && appState.selected.size > 0;
+    GROUP_DOWNLOAD_MEDIA.classList.toggle('hide', appState.extensionHidden || !isZipSelecting);
+    DOWNLOAD_BUTTON.classList.toggle('hide', appState.extensionHidden || isZipSelecting);
+}
+
 function updateSelectedMedia() {
     const TITLE_CONTAINER = document.querySelector('.title-container').firstElementChild;
     const DISPLAY_CONTAINER = document.querySelector('.display-container');
-    const GROUP_DOWNLOAD_MEDIA = document.querySelector('.group-download-media');
-    const DOWNLOAD_BUTTON = document.querySelector('.download-button');
     if (appState.isSelecting) {
         TITLE_CONTAINER.textContent = `Selected ${appState.selected.size} / ${appState.data?.media.length ?? 0}`;
     }
-    const isZipSelecting = appState.isSelecting && appState.selected.size > 0;
-    GROUP_DOWNLOAD_MEDIA.classList.toggle('hide', !isZipSelecting);
-    DOWNLOAD_BUTTON.classList.toggle('hide', isZipSelecting);
+    updateButtonVisibility();
     DISPLAY_CONTAINER.querySelectorAll('.media-item').forEach((media, index) => {
         media.parentElement.querySelector('.overlay').classList.toggle('checked', appState.selected.has(index));
     });
@@ -266,8 +272,9 @@ function renderMedia(data) {
             else if (key !== 'controls') media.setAttribute(key, attributes[key]);
         });
         media.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
             if (appState.isSelecting) {
-                if (item.isVideo) e.preventDefault();
                 appState.toggleSelected(index);
                 updateSelectedMedia();
             } else {
