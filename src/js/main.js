@@ -35,6 +35,9 @@ const appCache = Object.freeze({
 const appState = Object.freeze(
     (() => {
         let currentDisplay = '';
+        let isSelecting = false;
+        let data = null;
+        const selected = new Set();
         const current = {
             shortcode: '',
             username: '',
@@ -54,6 +57,36 @@ const appState = Object.freeze(
             },
             set currentDisplay(value) {
                 if (['post', 'stories', 'highlights'].includes(value)) currentDisplay = value;
+            },
+            get isSelecting() {
+                return isSelecting;
+            },
+            set isSelecting(value) {
+                isSelecting = value;
+            },
+            get data() {
+                return data;
+            },
+            set data(value) {
+                data = value;
+                selected.clear();
+                isSelecting = false;
+            },
+            get selected() {
+                return selected;
+            },
+            toggleSelected(index) {
+                if (selected.has(index)) selected.delete(index);
+                else selected.add(index);
+            },
+            selectAll() {
+                if (!data) return;
+                if (selected.size === data.media.length) selected.clear();
+                else {
+                    data.media.forEach((_, index) => {
+                        selected.add(index);
+                    });
+                }
             },
             current: Object.freeze({
                 get shortcode() {
@@ -170,39 +203,22 @@ const appState = Object.freeze(
             }
         }
         function toggleSelectMode() {
-            if (TITLE_CONTAINER.classList.contains('multi-select')) {
+            appState.isSelecting = !appState.isSelecting;
+            if (appState.isSelecting) {
                 TITLE_CONTAINER.title = 'Hold to select / deselect all';
-                DISPLAY_CONTAINER.querySelectorAll('.overlay').forEach((element) => {
-                    element.classList.add('show');
-                });
             } else {
                 TITLE_CONTAINER.textContent = 'Media';
                 TITLE_CONTAINER.title = APP_NAME;
-                DISPLAY_CONTAINER.querySelectorAll('.overlay').forEach((element) => {
-                    element.classList.remove('show');
-                });
             }
+            DISPLAY_CONTAINER.querySelectorAll('.overlay').forEach((element) => {
+                element.classList.toggle('show', appState.isSelecting);
+            });
+            updateSelectedMedia();
         }
         function handleSelectAll() {
-            if (!TITLE_CONTAINER.classList.contains('multi-select')) return;
-            const totalItem = Array.from(DISPLAY_CONTAINER.querySelectorAll('.overlay'));
-            const totalItemChecked = Array.from(DISPLAY_CONTAINER.querySelectorAll('.overlay.checked'));
-            if (totalItemChecked.length !== totalItem.length)
-                totalItem.forEach((item) => {
-                    if (!item.classList.contains('saved')) item.classList.add('checked');
-                });
-            else {
-                totalItem.forEach((item) => {
-                    item.classList.remove('checked');
-                });
-            }
-        }
-        function setSelectedMedia() {
-            if (TITLE_CONTAINER.classList.contains('multi-select')) {
-                const totalItemsCount = DISPLAY_CONTAINER.querySelectorAll('.overlay').length;
-                const selectedItemsCount = DISPLAY_CONTAINER.querySelectorAll('.overlay.checked').length;
-                TITLE_CONTAINER.textContent = `Selected ${selectedItemsCount} / ${totalItemsCount}`;
-            }
+            if (!appState.isSelecting) return;
+            appState.selectAll();
+            updateSelectedMedia();
         }
         function hideExtension() {
             DOWNLOAD_BUTTON.setAttribute('hidden', 'true');
@@ -252,8 +268,6 @@ const appState = Object.freeze(
         }
         const handleTheme = new MutationObserver(setTheme);
         const handleVideo = new MutationObserver(pauseVideo);
-        const handleToggleSelectMode = new MutationObserver(toggleSelectMode);
-        const handleSelectMedia = new MutationObserver(setSelectedMedia);
         handleTheme.observe(document.documentElement, {
             attributes: true,
             attributeFilter: ['class'],
@@ -261,15 +275,6 @@ const appState = Object.freeze(
         handleVideo.observe(DISPLAY_CONTAINER, {
             attributes: true,
             attributeFilter: ['class'],
-        });
-        handleToggleSelectMode.observe(TITLE_CONTAINER, {
-            attributes: true,
-            attributeFilter: ['class'],
-        });
-        handleSelectMedia.observe(DISPLAY_CONTAINER.querySelector('.media-container'), {
-            attributes: true,
-            childList: true,
-            subtree: true,
         });
         ESC_BUTTON.addEventListener('click', () => {
             DISPLAY_CONTAINER.classList.add('hide');
@@ -286,7 +291,7 @@ const appState = Object.freeze(
                 return ESC_BUTTON.click();
             }
             if (SELECT_EVENT_KEYS.includes(e.key) && !DISPLAY_CONTAINER.classList.contains('hide')) {
-                return TITLE_CONTAINER.classList.toggle('multi-select');
+                return toggleSelectMode();
             }
         });
         document.addEventListener('visibilitychange', () => {
@@ -296,13 +301,7 @@ const appState = Object.freeze(
                 });
             }
         });
-        handleLongClick(
-            TITLE_CONTAINER,
-            () => {
-                TITLE_CONTAINER.classList.toggle('multi-select');
-            },
-            handleSelectAll,
-        );
+        handleLongClick(TITLE_CONTAINER, () => toggleSelectMode(), handleSelectAll);
         DOWNLOAD_BUTTON.addEventListener('click', handleDownload);
         window.addEventListener('online', () => {
             DISPLAY_CONTAINER.querySelectorAll('img , video').forEach((media) => {
