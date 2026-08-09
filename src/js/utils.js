@@ -208,11 +208,13 @@ function setDownloadState(state = 'ready') {
 async function handleDownload(e) {
     e.preventDefault();
     e.stopPropagation();
+    exitSelectMode();
     let data = null;
     const DISPLAY_CONTAINER = document.querySelector('.display-container');
     const option = shouldDownload();
     requestAnimationFrame(() => {
         DISPLAY_CONTAINER.classList.remove('hide');
+        updateButtonVisibility();
     });
     if (option === 'none') return;
     setDownloadState('ready');
@@ -223,9 +225,11 @@ async function handleDownload(e) {
 }
 
 function updateButtonVisibility() {
+    const DISPLAY_CONTAINER = document.querySelector('.display-container');
     const GROUP_DOWNLOAD_MEDIA = document.querySelector('.group-download-media');
     const DOWNLOAD_BUTTON = document.querySelector('.download-button');
-    const isZipSelecting = appState.isSelecting && appState.selected.size > 0;
+    const panelHidden = DISPLAY_CONTAINER.classList.contains('hide');
+    const isZipSelecting = appState.isSelecting && appState.selected.size > 0 && !panelHidden;
     GROUP_DOWNLOAD_MEDIA.classList.toggle('hide', appState.extensionHidden || !isZipSelecting);
     DOWNLOAD_BUTTON.classList.toggle('hide', appState.extensionHidden || isZipSelecting);
 }
@@ -240,6 +244,21 @@ function updateSelectedMedia() {
     DISPLAY_CONTAINER.querySelectorAll('.media-item').forEach((media, index) => {
         media.parentElement.querySelector('.overlay').classList.toggle('checked', appState.selected.has(index));
     });
+}
+
+function exitSelectMode() {
+    const TITLE_CONTAINER = document.querySelector('.title-container').firstElementChild;
+    const DISPLAY_CONTAINER = document.querySelector('.display-container');
+    if (!appState.isSelecting && appState.selected.size === 0) return;
+    appState.isSelecting = false;
+    appState.selected.clear();
+    TITLE_CONTAINER.textContent = 'Media';
+    TITLE_CONTAINER.title = APP_NAME;
+    DISPLAY_CONTAINER.querySelectorAll('.overlay').forEach((element) => {
+        element.classList.remove('show');
+        element.classList.remove('checked');
+    });
+    updateSelectedMedia();
 }
 
 function renderMedia(data) {

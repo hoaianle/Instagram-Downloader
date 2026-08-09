@@ -292,6 +292,7 @@ const appState = Object.freeze(
         });
         ESC_BUTTON.addEventListener('click', () => {
             DISPLAY_CONTAINER.classList.add('hide');
+            exitSelectMode();
         });
         window.addEventListener('keydown', (e) => {
             if (window.location.pathname.startsWith('/direct')) return;
