@@ -1,12 +1,13 @@
 async function getUserIdFromSearch(username) {
     if (appCache.userIdsCache.has(username)) return appCache.userIdsCache.get(username);
+    const query = username || appState.current.username;
     const apiURL = new URL('/web/search/topsearch/', IG_BASE_URL);
-    if (username) apiURL.searchParams.set('query', username);
-    else apiURL.searchParams.set('query', appState.current.username);
+    apiURL.searchParams.set('query', query);
     try {
         const respone = await fetch(apiURL.href);
         const json = await respone.json();
-        return json.users[0].user['pk_id'];
+        const exactMatch = json.users.find((item) => item.user['username'] === query);
+        return (exactMatch ?? json.users[0]).user['pk_id'];
     } catch (error) {
         console.log(error);
         return '';
@@ -62,7 +63,8 @@ async function downloadStoryPhotos(type = 'stories') {
         if (!appState.current.highlights) return null;
         json = await getHighlightStory(appState.current.highlights);
     } else {
-        const userId = await getUserId(appState.current.username);
+        const userId =
+            (await getUserId(appState.current.username)) || (await getUserIdFromSearch(appState.current.username));
         if (!userId) return null;
         json = await getStoryPhotos(userId);
     }
