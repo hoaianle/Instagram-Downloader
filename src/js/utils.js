@@ -68,30 +68,50 @@ function resetDownloadState() {
     DOWNLOAD_BUTTON.disabled = false;
 }
 
-async function saveMedia(media, fileName) {
+async function fetchBestMediaBlob(item, onProgress) {
+    if (item.isVideo && item.dash) return muxDashMedia(item.dash, onProgress);
+    const response = await fetch(item.url);
+    if (!response.ok) throw new Error(`Media download failed (${response.status})`);
+    return response.blob();
+}
+
+async function saveMedia(item, fileName) {
+    const DOWNLOAD_BUTTON = document.querySelector('.download-button');
     try {
-        const respone = await fetch(media.src);
-        const blob = await respone.blob();
+        DOWNLOAD_BUTTON.classList.add('loading');
+        DOWNLOAD_BUTTON.disabled = true;
+        const blob = await fetchBestMediaBlob(item, (stage) => {
+            DOWNLOAD_BUTTON.textContent = stage;
+        });
         saveFile(blob, fileName);
     } catch (error) {
         console.log(error);
+    } finally {
+        resetDownloadState();
     }
 }
 
 async function saveAllSelected() {
     const { data } = appState;
+    const DOWNLOAD_BUTTON = document.querySelector('.download-button');
     const date = new Date(data.date * 1000).toISOString().split('T')[0];
+    DOWNLOAD_BUTTON.classList.add('loading');
+    DOWNLOAD_BUTTON.disabled = true;
+    let count = 0;
     for (const index of appState.selected) {
         const item = data.media[index];
         try {
-            const respone = await fetch(item.url);
-            const blob = await respone.blob();
+            const blob = await fetchBestMediaBlob(item, (stage) => {
+                DOWNLOAD_BUTTON.textContent = `${count + 1}/${appState.selected.size} ${stage}`;
+            });
             const title = `${data.user.username} | ${item.id} | ${date}`;
             saveFile(blob, title.replaceAll(' | ', '_') + `.${item.format}`);
+            count++;
         } catch (error) {
             console.log(error);
         }
     }
+    resetDownloadState();
 }
 
 async function saveZip() {
@@ -105,30 +125,25 @@ async function saveZip() {
         return {
             title: `${appState.data.user.username}_${item.id}_${date}`,
             format: item.format,
-            url: item.url,
+            item,
         };
     });
     const zipFileName = `${media[0].title}.zip`;
     async function fetchSelectedMedia() {
         let count = 0;
-        const results = await Promise.allSettled(
-            media.map(async (item) => {
-                const res = await fetch(item.url);
-                const blob = await res.blob();
-                const data = {
-                    title: item.title,
-                    data: blob,
-                };
-                data.title = `${data.title}.${item.format}`;
-                count++;
-                DOWNLOAD_BUTTON.textContent = `${count}/${media.length}`;
-                return data;
-            }),
-        );
-        results.forEach((promise) => {
-            if (promise.status === 'rejected') throw new Error('Fail to fetch');
-        });
-        return results.map((promise) => promise.value);
+        const results = [];
+        for (const mediaItem of media) {
+            const blob = await fetchBestMediaBlob(mediaItem.item, (stage) => {
+                DOWNLOAD_BUTTON.textContent = `${count + 1}/${media.length} ${stage}`;
+            });
+            results.push({
+                title: `${mediaItem.title}.${mediaItem.format}`,
+                data: blob,
+            });
+            count++;
+            DOWNLOAD_BUTTON.textContent = `${count}/${media.length}`;
+        }
+        return results;
     }
     try {
         const data = await fetchSelectedMedia();
@@ -298,7 +313,7 @@ function renderMedia(data) {
                 updateSelectedMedia();
             } else {
                 const filename = media.title.replaceAll(' | ', '_') + `.${item.format}`;
-                saveMedia(media, filename);
+                saveMedia(item, filename);
             }
         });
         fragment.appendChild(itemDOM);
