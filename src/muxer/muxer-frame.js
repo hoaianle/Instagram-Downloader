@@ -1,4 +1,4 @@
-import { createFile } from '../../lib/mp4box/mp4box.all.mjs';
+import { BoxParser, createFile } from '../../lib/mp4box/mp4box.all.mjs';
 
 const MESSAGE_SOURCE = 'instagram-downloader-muxer';
 const INSTAGRAM_ORIGIN = 'https://www.instagram.com';
@@ -85,19 +85,106 @@ function addCopiedSample(output, trackId, sample) {
     });
 }
 
-function createGroupedMediaBlob(output, tracks) {
+function runLengthEncode(values) {
+    const counts = [];
+    const entries = [];
+    for (const value of values) {
+        if (entries.at(-1) === value) counts[counts.length - 1]++;
+        else {
+            entries.push(value);
+            counts.push(1);
+        }
+    }
+    return { counts, entries };
+}
+
+function getMediaChunks(trackId, samples, targetDuration = 1) {
+    const chunks = [];
+    let start = 0;
+    let startTime = samples[0].dts / samples[0].timescale;
+    for (let index = 1; index < samples.length; index++) {
+        const time = samples[index].dts / samples[index].timescale;
+        if (time - startTime < targetDuration) continue;
+        chunks.push({ trackId, start, end: index - 1, time: startTime });
+        start = index;
+        startTime = time;
+    }
+    chunks.push({ trackId, start, end: samples.length - 1, time: startTime });
+    return chunks;
+}
+
+function configureSampleTable(output, track, chunks) {
+    const stbl = output.getTrackById(track.id).mdia.minf.stbl;
+    const durations = runLengthEncode(track.samples.map((sample) => sample.duration));
+    stbl.stts.sample_counts = durations.counts;
+    stbl.stts.sample_deltas = durations.entries;
+    stbl.stsz.sample_size = 0;
+    stbl.stsz.sample_sizes = track.samples.map((sample) => sample.data.byteLength);
+    stbl.stsc.first_chunk = [];
+    stbl.stsc.samples_per_chunk = [];
+    stbl.stsc.sample_description_index = [];
+    let previousSampleCount = -1;
+    chunks.forEach((chunk, index) => {
+        const sampleCount = chunk.end - chunk.start + 1;
+        if (sampleCount === previousSampleCount) return;
+        stbl.stsc.first_chunk.push(index + 1);
+        stbl.stsc.samples_per_chunk.push(sampleCount);
+        stbl.stsc.sample_description_index.push(1);
+        previousSampleCount = sampleCount;
+    });
+    const syncSamples = track.samples.flatMap((sample, index) => (sample.is_sync ? [index + 1] : []));
+    if (syncSamples.length && syncSamples.length !== track.samples.length) {
+        const stss = stbl.addBox(new BoxParser.box.stss());
+        stss.sample_numbers = syncSamples;
+    }
+    const compositionOffsets = track.samples.map((sample) => sample.cts - sample.dts);
+    if (compositionOffsets.some(Boolean)) {
+        const values = runLengthEncode(compositionOffsets);
+        const ctts = stbl.addBox(new BoxParser.box.ctts());
+        ctts.version = compositionOffsets.some((offset) => offset < 0) ? 1 : 0;
+        ctts.sample_counts = values.counts;
+        ctts.sample_offsets = values.entries;
+    }
+    stbl.stco.chunk_offsets = chunks.map(() => 0);
+}
+
+function createFlatMediaBlob(output, tracks) {
     output.boxes = output.boxes.filter((box) => box.type !== 'moof' && box.type !== 'mdat');
+    output.moov.boxes = output.moov.boxes.filter((box) => box.type !== 'mvex');
+    delete output.moov.mvex;
+    const tracksById = new Map(tracks.map((track) => [track.id, track]));
+    const chunks = tracks
+        .flatMap((track) => getMediaChunks(track.id, track.samples))
+        .sort((a, b) => a.time - b.time || a.trackId - b.trackId);
+    const chunksByTrack = new Map(tracks.map((track) => [track.id, []]));
+    let mediaSize = 0;
+    for (const chunk of chunks) {
+        chunk.dataOffset = mediaSize;
+        chunksByTrack.get(chunk.trackId).push(chunk);
+        const samples = tracksById.get(chunk.trackId).samples;
+        for (let index = chunk.start; index <= chunk.end; index++) mediaSize += samples[index].data.byteLength;
+    }
+    const mediaData = new Uint8Array(mediaSize);
+    let mediaOffset = 0;
+    for (const chunk of chunks) {
+        const samples = tracksById.get(chunk.trackId).samples;
+        for (let index = chunk.start; index <= chunk.end; index++) {
+            mediaData.set(samples[index].data, mediaOffset);
+            mediaOffset += samples[index].data.byteLength;
+        }
+    }
+    for (const track of tracks) configureSampleTable(output, track, chunksByTrack.get(track.id));
+    const mediaDataStart = output.getBuffer().buffer.byteLength + 8;
+    for (const track of tracks) {
+        const stco = output.getTrackById(track.id).mdia.minf.stbl.stco;
+        stco.chunk_offsets = chunksByTrack.get(track.id).map((chunk) => mediaDataStart + chunk.dataOffset);
+    }
     output.moofs = [];
     output.mdats = [];
-    output.nextMoofNumber = 0;
-    const buffers = [output.getBuffer().buffer];
-    for (const { id, sampleCount } of tracks) {
-        if (!sampleCount) continue;
-        const fragment = output.createFragment(id, 0, sampleCount - 1);
-        if (!fragment) throw new Error('Failed to create media fragment');
-        buffers.push(fragment.buffer);
-    }
-    return new Blob(buffers, { type: 'video/mp4' });
+    const mdat = new BoxParser.box.mdat();
+    mdat.data = mediaData;
+    output.addBox(mdat);
+    return new Blob([output.getBuffer().buffer], { type: 'video/mp4' });
 }
 
 async function downloadTrack(url) {
@@ -124,10 +211,9 @@ async function createMuxedBlob(videoUrl, audioUrl, reportProgress) {
     if (audioSource) {
         for (const sample of audioSource.samples) addCopiedSample(output, audioId, sample);
     }
-    return createGroupedMediaBlob(output, [
-        { id: videoId, sampleCount: videoSource.samples.length },
-        { id: audioId, sampleCount: audioSource?.samples.length || 0 },
-    ]);
+    const tracks = [{ id: videoId, samples: videoSource.samples }];
+    if (audioSource) tracks.push({ id: audioId, samples: audioSource.samples });
+    return createFlatMediaBlob(output, tracks);
 }
 
 window.addEventListener('message', async (event) => {
