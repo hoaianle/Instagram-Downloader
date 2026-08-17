@@ -85,6 +85,21 @@ function addCopiedSample(output, trackId, sample) {
     });
 }
 
+function createGroupedMediaBlob(output, tracks) {
+    output.boxes = output.boxes.filter((box) => box.type !== 'moof' && box.type !== 'mdat');
+    output.moofs = [];
+    output.mdats = [];
+    output.nextMoofNumber = 0;
+    const buffers = [output.getBuffer().buffer];
+    for (const { id, sampleCount } of tracks) {
+        if (!sampleCount) continue;
+        const fragment = output.createFragment(id, 0, sampleCount - 1);
+        if (!fragment) throw new Error('Failed to create media fragment');
+        buffers.push(fragment.buffer);
+    }
+    return new Blob(buffers, { type: 'video/mp4' });
+}
+
 async function downloadTrack(url) {
     const response = await fetch(url);
     if (!response.ok) throw new Error(`Media download failed (${response.status})`);
@@ -105,14 +120,14 @@ async function createMuxedBlob(videoUrl, audioUrl, reportProgress) {
     const movieTimescale = videoSource.track.timescale;
     const videoId = addOutputTrack(output, videoSource, 1, movieTimescale);
     const audioId = audioSource ? addOutputTrack(output, audioSource, 2, movieTimescale) : null;
-    const timeline = [
-        ...videoSource.samples.map((sample) => ({ trackId: videoId, sample, time: sample.dts / sample.timescale })),
-        ...(audioSource
-            ? audioSource.samples.map((sample) => ({ trackId: audioId, sample, time: sample.dts / sample.timescale }))
-            : []),
-    ].sort((a, b) => a.time - b.time || a.trackId - b.trackId);
-    for (const item of timeline) addCopiedSample(output, item.trackId, item.sample);
-    return new Blob([output.getBuffer().buffer], { type: 'video/mp4' });
+    for (const sample of videoSource.samples) addCopiedSample(output, videoId, sample);
+    if (audioSource) {
+        for (const sample of audioSource.samples) addCopiedSample(output, audioId, sample);
+    }
+    return createGroupedMediaBlob(output, [
+        { id: videoId, sampleCount: videoSource.samples.length },
+        { id: audioId, sampleCount: audioSource?.samples.length || 0 },
+    ]);
 }
 
 window.addEventListener('message', async (event) => {
