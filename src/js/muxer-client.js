@@ -31,7 +31,7 @@ window.addEventListener('message', (event) => {
     const pending = dashMuxerRequests.get(event.data.requestId);
     if (!pending) return;
     if (event.data.type === 'progress') {
-        pending.onProgress?.(event.data.stage);
+        pending.onProgress?.({ stage: event.data.stage, percent: event.data.percent });
         return;
     }
     dashMuxerRequests.delete(event.data.requestId);

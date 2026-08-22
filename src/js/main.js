@@ -176,10 +176,10 @@ const appState = Object.freeze(
                         </p>
                     </div>
                 </div>
-                <button title="Shift+D" class="download-button">Download</button>
+                <button title="Shift+D" class="download-button" data-default-label="Download">Download</button>
                 <div class="group-download-media hide">
-                    <button>Save as zip</button>
-                    <button>Save all</button>
+                    <button class="zip-download-button" data-default-label="Save as zip">Save as zip</button>
+                    <button class="all-download-button" data-default-label="Save all">Save all</button>
                 </div>`,
             ),
         );
@@ -318,14 +318,14 @@ const appState = Object.freeze(
         });
         handleLongClick(TITLE_CONTAINER, () => toggleSelectMode(), handleSelectAll);
         DOWNLOAD_BUTTON.addEventListener('click', handleDownload);
-        GROUP_DOWNLOAD_MEDIA.querySelector('button:first-child')?.addEventListener('click', (e) => {
+        GROUP_DOWNLOAD_MEDIA.querySelector('.zip-download-button')?.addEventListener('click', (e) => {
             e.preventDefault();
             e.stopPropagation();
             if (appState.isSelecting && appState.selected.size !== 0) {
                 saveZip();
             }
         });
-        GROUP_DOWNLOAD_MEDIA.querySelector('button:last-child')?.addEventListener('click', (e) => {
+        GROUP_DOWNLOAD_MEDIA.querySelector('.all-download-button')?.addEventListener('click', (e) => {
             e.preventDefault();
             e.stopPropagation();
             if (appState.isSelecting && appState.selected.size !== 0) {

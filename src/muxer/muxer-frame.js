@@ -187,20 +187,73 @@ function createFlatMediaBlob(output, tracks) {
     return new Blob([output.getBuffer().buffer], { type: 'video/mp4' });
 }
 
-async function downloadTrack(url) {
+async function fetchTrack(url) {
     const response = await fetch(url);
     if (!response.ok) throw new Error(`Media download failed (${response.status})`);
-    return response.arrayBuffer();
+    return response;
+}
+
+async function downloadTrack(response, reportProgress) {
+    const total = Number(response.headers.get('content-length') || 0);
+    if (!response.body) {
+        const buffer = await response.arrayBuffer();
+        reportProgress(buffer.byteLength, total || buffer.byteLength, true);
+        return buffer;
+    }
+    const reader = response.body.getReader();
+    const chunks = [];
+    let loaded = 0;
+    while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+        loaded += value.byteLength;
+        reportProgress(loaded, total, false);
+    }
+    const data = new Uint8Array(loaded);
+    let offset = 0;
+    for (const chunk of chunks) {
+        data.set(chunk, offset);
+        offset += chunk.byteLength;
+    }
+    reportProgress(loaded, total || loaded, true);
+    return data.buffer;
 }
 
 async function createMuxedBlob(videoUrl, audioUrl, reportProgress) {
-    reportProgress('Downloading video');
-    const videoPromise = downloadTrack(videoUrl);
-    const audioPromise = audioUrl ? downloadTrack(audioUrl) : null;
-    const videoBuffer = await videoPromise;
-    reportProgress(audioPromise ? 'Downloading audio' : 'Preparing video');
-    const audioBuffer = audioPromise ? await audioPromise : null;
-    reportProgress('Muxing');
+    const [videoResponse, audioResponse] = await Promise.all([
+        fetchTrack(videoUrl),
+        audioUrl ? fetchTrack(audioUrl) : Promise.resolve(null),
+    ]);
+    const responses = [videoResponse, audioResponse].filter(Boolean);
+    const downloads = responses.map((response) => ({
+        loaded: 0,
+        total: Number(response.headers.get('content-length') || 0),
+        complete: false,
+    }));
+    let lastDownloadPercent = -1;
+    const updateDownloadProgress = () => {
+        const hasAllTotals = downloads.every((download) => download.total > 0);
+        const fraction = hasAllTotals
+            ? downloads.reduce((sum, download) => sum + download.loaded, 0) /
+              downloads.reduce((sum, download) => sum + download.total, 0)
+            : downloads.filter((download) => download.complete).length / downloads.length;
+        const percent = Math.min(90, Math.round(fraction * 90));
+        if (percent === lastDownloadPercent) return;
+        lastDownloadPercent = percent;
+        reportProgress('Downloading', percent);
+    };
+    reportProgress('Downloading', 0);
+    const buffers = await Promise.all(
+        responses.map((response, index) =>
+            downloadTrack(response, (loaded, total, complete) => {
+                downloads[index] = { loaded, total, complete };
+                updateDownloadProgress();
+            }),
+        ),
+    );
+    const [videoBuffer, audioBuffer = null] = buffers;
+    reportProgress('Muxing', 92);
     const videoSource = await extractTrack(videoBuffer, 'video');
     const audioSource = audioBuffer ? await extractTrack(audioBuffer, 'audio') : null;
     const output = createFile();
@@ -213,7 +266,10 @@ async function createMuxedBlob(videoUrl, audioUrl, reportProgress) {
     }
     const tracks = [{ id: videoId, samples: videoSource.samples }];
     if (audioSource) tracks.push({ id: audioId, samples: audioSource.samples });
-    return createFlatMediaBlob(output, tracks);
+    reportProgress('Finalizing', 98);
+    const blob = createFlatMediaBlob(output, tracks);
+    reportProgress('Complete', 100);
+    return blob;
 }
 
 window.addEventListener('message', async (event) => {
@@ -224,7 +280,9 @@ window.addEventListener('message', async (event) => {
     const reply = (message) =>
         event.source.postMessage({ source: MESSAGE_SOURCE, requestId: data.requestId, ...message }, INSTAGRAM_ORIGIN);
     try {
-        const blob = await createMuxedBlob(data.videoUrl, data.audioUrl, (stage) => reply({ type: 'progress', stage }));
+        const blob = await createMuxedBlob(data.videoUrl, data.audioUrl, (stage, percent) =>
+            reply({ type: 'progress', stage, percent }),
+        );
         reply({ type: 'result', blob });
     } catch (error) {
         console.error(error);
