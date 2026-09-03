@@ -69,6 +69,9 @@
         window.removeEventListener('scroll', homeScrollHandler);
     }
     navigation.addEventListener('navigate', (e) => {
+        if (e.destination.url?.startsWith('blob')) {
+            return;
+        }
         const url = new URL(e.destination.url);
         if (url.pathname === '/') startObserve();
         else stopObserve();

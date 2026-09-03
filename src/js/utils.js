@@ -354,6 +354,9 @@ function renderMedia(data) {
             src: item.url,
             title: `${data.user.username} | ${item.id} | ${date}`,
             controls: '',
+            // Chrome's native download button bypasses saveMedia and fetches the
+            // signed CDN url directly, which the CDN rejects.
+            controlslist: 'nodownload',
             'data-format': item.format,
         };
         const ITEM_TEMPLATE = `<div>
@@ -364,7 +367,7 @@ function renderMedia(data) {
         const media = itemDOM.querySelector('img, video');
         Object.keys(attributes).forEach((key) => {
             if (item.isVideo) media.setAttribute(key, attributes[key]);
-            else if (key !== 'controls') media.setAttribute(key, attributes[key]);
+            else if (key !== 'controls' && key !== 'controlslist') media.setAttribute(key, attributes[key]);
         });
         media.addEventListener('click', (e) => {
             e.preventDefault();
