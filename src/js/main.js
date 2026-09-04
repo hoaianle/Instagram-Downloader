@@ -338,6 +338,9 @@ const appState = Object.freeze(
             });
         });
         navigation.addEventListener('navigate', (e) => {
+            if (e.destination.url?.startsWith('blob')) {
+                return;
+            }
             const currentPath = new URL(e.destination.url).pathname;
             const previousPath = window.location.pathname;
             // Hide/Show Download button when user navigate
