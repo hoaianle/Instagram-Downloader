@@ -19,6 +19,27 @@ function convertToShortcode(postId) {
     return shortcode;
 }
 
+const IG_POST_ROOT_QUERY_DOC_ID = '27852811784380813';
+
+/**
+ * Instagram embeds the LSD and DTSG tokens in inline scripts of the
+ * server-rendered HTML. GraphQL POSTs without them get an HTML page back.
+ */
+function getWebSessionTokens() {
+    const tokens = { lsd: null, dtsg: null };
+    for (const script of document.querySelectorAll('script')) {
+        const text = script.textContent;
+        if (!tokens.lsd) tokens.lsd = text.match(/\["LSD",\[\],\{"token":"([^"]+)"\}/)?.[1] ?? null;
+        if (!tokens.dtsg)
+            tokens.dtsg =
+                text.match(/\["DTSGInitData",\[\],\{"token":"([^"]+)"/)?.[1] ??
+                text.match(/\["DTSGInitialData",\[\],\{"token":"([^"]+)"/)?.[1] ??
+                null;
+        if (tokens.lsd && tokens.dtsg) break;
+    }
+    return tokens;
+}
+
 async function getPostIdFromApi() {
     const cachedPostId = appCache.postIdInfoCache.get(appState.current.shortcode);
     if (cachedPostId) return cachedPostId;
@@ -46,19 +67,37 @@ async function getPostIdFromApi() {
 }
 
 async function getPostPhotos(shortcode) {
-    const postId = convertToPostId(shortcode);
-    const apiURL = new URL(`/api/v1/media/${postId}/info/`, IG_BASE_URL);
+    const apiURL = new URL('/graphql/query', IG_BASE_URL);
+    const { lsd, dtsg } = getWebSessionTokens();
+    const fetchOptions = getFetchOptions();
+    fetchOptions['method'] = 'POST';
+    fetchOptions.headers['content-type'] = 'application/x-www-form-urlencoded';
+    fetchOptions.headers['x-fb-friendly-name'] = 'PolarisPostRootQuery';
+    fetchOptions.headers['x-asbd-id'] = '129477';
+    if (lsd) fetchOptions.headers['x-fb-lsd'] = lsd;
+    fetchOptions.body = new URLSearchParams({
+        __d: 'www',
+        __user: '0',
+        __a: '1',
+        __req: '1',
+        __comet_req: '7',
+        fb_dtsg: dtsg ?? '',
+        lsd: lsd ?? '',
+        fb_api_caller_class: 'RelayModern',
+        fb_api_req_friendly_name: 'PolarisPostRootQuery',
+        server_timestamps: 'true',
+        doc_id: IG_POST_ROOT_QUERY_DOC_ID,
+        variables: JSON.stringify({
+            shortcode,
+            __relay_internal__pv__PolarisShortDramaEnabledrelayprovider: false,
+            __relay_internal__pv__PolarisMultiCaptionCarouselEnabledrelayprovider: false,
+        }),
+    }).toString();
     try {
         setPreferredMediaResolutionCookies();
-        let respone = await fetch(apiURL.href, getFetchOptions());
-        if (respone.status === 400) {
-            const postId = await getPostIdFromApi();
-            if (!postId) throw new Error('Network bug');
-            const apiURL = new URL(`/api/v1/media/${postId}/info/`, IG_BASE_URL);
-            respone = await fetch(apiURL.href, getFetchOptions());
-        }
+        const respone = await fetch(apiURL.href, fetchOptions);
         const json = await respone.json();
-        return json.items[0];
+        return json.data['xdt_api__v1__media__shortcode__web_info'].items[0];
     } catch (error) {
         console.log(error);
         return null;
