@@ -187,7 +187,12 @@
 
 .download-button.loading {
     cursor: default;
-    background-color: rgb(var(--ig-colors-button-primary-background--pressed));
+}
+
+@property --download-progress {
+    syntax: '<percentage>';
+    inherits: false;
+    initial-value: 0%;
 }
 
 .download-button.hide {
@@ -235,6 +240,28 @@
     inset-inline-end: 34px;
 }
 
+.download-button.loading,
+.group-download-media > button.loading {
+    cursor: default;
+    background: linear-gradient(
+        to right,
+        rgb(var(--ig-colors-button-primary-background)) 0%,
+        rgb(var(--ig-colors-button-primary-background)) var(--download-progress, 0%),
+        rgb(var(--ig-colors-button-primary-background--pressed)) var(--download-progress, 0%),
+        rgb(var(--ig-colors-button-primary-background--pressed)) 100%
+    );
+    color: white;
+}
+
+.download-button.loading:not(.progressing) {
+    background: rgb(var(--ig-colors-button-primary-background--pressed));
+}
+
+.download-button.loading:disabled,
+.group-download-media > button:disabled {
+    opacity: 1;
+}
+
 /* Support bottom navigation */
 @media (max-width: 767px) {
     .download-button {
@@ -260,6 +287,14 @@
         top: 60%;
         left: 50%;
         transform: translate(-50%, -50%);
+    }
+
+    .download-button.loading {
+        font-size: var(--system-16-font-size);
+    }
+
+    .download-button.loading:before {
+        display: none;
     }
 
     .display-container {

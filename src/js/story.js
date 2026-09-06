@@ -1,12 +1,13 @@
 async function getUserIdFromSearch(username) {
     if (appCache.userIdsCache.has(username)) return appCache.userIdsCache.get(username);
+    const query = username || appState.current.username;
     const apiURL = new URL('/web/search/topsearch/', IG_BASE_URL);
-    if (username) apiURL.searchParams.set('query', username);
-    else apiURL.searchParams.set('query', appState.current.username);
+    apiURL.searchParams.set('query', query);
     try {
         const respone = await fetch(apiURL.href);
         const json = await respone.json();
-        return json.users[0].user['pk_id'];
+        const exactMatch = json.users.find((item) => item.user['username'] === query);
+        return (exactMatch ?? json.users[0]).user['pk_id'];
     } catch (error) {
         console.log(error);
         return '';
@@ -62,7 +63,8 @@ async function downloadStoryPhotos(type = 'stories') {
         if (!appState.current.highlights) return null;
         json = await getHighlightStory(appState.current.highlights);
     } else {
-        const userId = await getUserId(appState.current.username);
+        const userId =
+            (await getUserId(appState.current.username)) || (await getUserIdFromSearch(appState.current.username));
         if (!userId) return null;
         json = await getStoryPhotos(userId);
     }
@@ -75,19 +77,8 @@ async function downloadStoryPhotos(type = 'stories') {
         media: [],
     };
     json.items.forEach((item) => {
-        const isVideo = item['media_type'] !== 1;
-        const mediaItems = isVideo ? item['video_versions'] : item['image_versions2'].candidates;
-        const largestMediaItem = mediaItems.reduce((accumulator, currentValue) => {
-            if (accumulator.width > currentValue.width) return accumulator;
-            return currentValue;
-        }, mediaItems[0]);
-        const media = {
-            url: largestMediaItem.url,
-            isVideo: isVideo,
-            id: item.pk,
-            format: resolveMediaFormat(largestMediaItem.url) ?? (isVideo ? 'mp4' : 'jpg'),
-        };
-        data.media.push(media);
+        const media = extractMediaData(item);
+        if (media) data.media.push(media);
     });
     return data;
 }

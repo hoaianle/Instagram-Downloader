@@ -46,6 +46,7 @@ This extension should work fine on the following browsers with `fetch()` API and
 - Download latest stories ✔
 - Download highlight stories ✔
 - Support high resolution ✔
+- Download the highest-quality DASH video and audio and mux them locally without re-encoding ✔
 - Support download zip file ✔
 
 ## Customize

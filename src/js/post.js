@@ -76,22 +76,10 @@ async function downloadPostPhotos() {
         },
         media: [],
     };
-    function extractMediaData(item) {
-        const isVideo = item['media_type'] !== 1;
-        const mediaItems = isVideo ? item['video_versions'] : item['image_versions2'].candidates;
-        const largestMediaItem = mediaItems.reduce((accumulator, currentValue) => {
-            if (accumulator.width * accumulator.height > currentValue.width * currentValue.height) return accumulator;
-            return currentValue;
-        }, mediaItems[0]);
-        const media = {
-            url: largestMediaItem.url,
-            isVideo,
-            id: item.pk,
-            format: resolveMediaFormat(largestMediaItem.url) ?? (isVideo ? 'mp4' : 'jpg'),
-        };
-        return media;
+    if (json['carousel_media']) data.media = json['carousel_media'].map(extractMediaData).filter(Boolean);
+    else {
+        const media = extractMediaData(json);
+        if (media) data.media.push(media);
     }
-    if (json['carousel_media']) data.media = json['carousel_media'].map(extractMediaData);
-    else data.media.push(extractMediaData(json));
     return data;
 }

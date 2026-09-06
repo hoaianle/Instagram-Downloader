@@ -6,6 +6,39 @@ function saveFile(blob, fileName) {
     URL.revokeObjectURL(a.href);
 }
 
+function setButtonProgress(button, percent) {
+    const value = Math.max(0, Math.min(100, Number(percent) || 0));
+    if (!button.dataset.defaultLabel) button.dataset.defaultLabel = button.textContent;
+    button.classList.add('loading');
+    button.classList.add('progressing');
+    button.disabled = true;
+    button.style.setProperty('--download-progress', `${value}%`);
+    button.textContent = `${Math.round(value)}%`;
+    button.setAttribute('aria-busy', 'true');
+    button.setAttribute('aria-label', `${button.dataset.defaultLabel} ${Math.round(value)}%`);
+}
+
+function resetButtonProgress(button) {
+    button.classList.remove('loading');
+    button.classList.remove('progressing');
+    button.disabled = false;
+    button.style.removeProperty('--download-progress');
+    button.textContent = button.dataset.defaultLabel;
+    button.removeAttribute('aria-busy');
+    button.removeAttribute('aria-label');
+}
+
+function setGroupDownloadProgress(activeButton, percent) {
+    document.querySelectorAll('.group-download-media > button').forEach((button) => {
+        button.disabled = true;
+    });
+    setButtonProgress(activeButton, percent);
+}
+
+function resetGroupDownloadState() {
+    document.querySelectorAll('.group-download-media > button').forEach(resetButtonProgress);
+}
+
 /**
  * The Instagram backend determines the maximum image resolution to return
  * based on the `wd` and `dpr` cookies.
@@ -63,83 +96,126 @@ function getValueByKey(obj, key) {
 
 function resetDownloadState() {
     const DOWNLOAD_BUTTON = document.querySelector('.download-button');
-    DOWNLOAD_BUTTON.classList.remove('loading');
-    DOWNLOAD_BUTTON.textContent = 'Download';
-    DOWNLOAD_BUTTON.disabled = false;
+    resetButtonProgress(DOWNLOAD_BUTTON);
 }
 
-async function saveMedia(media, fileName) {
+async function fetchProgressiveMediaBlob(url, onProgress) {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`Media download failed (${response.status})`);
+    const total = Number(response.headers.get('content-length') || 0);
+    if (!response.body) {
+        const blob = await response.blob();
+        onProgress?.({ stage: 'Downloading', percent: 100 });
+        return blob;
+    }
+    const reader = response.body.getReader();
+    const chunks = [];
+    let loaded = 0;
+    let lastPercent = -1;
+    while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+        loaded += value.byteLength;
+        if (total) {
+            const percent = Math.min(100, Math.round((loaded / total) * 100));
+            if (percent !== lastPercent) {
+                lastPercent = percent;
+                onProgress?.({ stage: 'Downloading', percent });
+            }
+        }
+    }
+    onProgress?.({ stage: 'Downloading', percent: 100 });
+    return new Blob(chunks, { type: response.headers.get('content-type') || '' });
+}
+
+async function fetchBestMediaBlob(item, onProgress) {
+    if (item.isVideo && item.dash) return muxDashMedia(item.dash, onProgress);
+    return fetchProgressiveMediaBlob(item.url, onProgress);
+}
+
+async function saveMedia(item, fileName) {
+    const DOWNLOAD_BUTTON = document.querySelector('.download-button');
     try {
-        const respone = await fetch(media.src);
-        const blob = await respone.blob();
+        setButtonProgress(DOWNLOAD_BUTTON, 0);
+        const blob = await fetchBestMediaBlob(item, ({ percent }) => {
+            setButtonProgress(DOWNLOAD_BUTTON, percent);
+        });
         saveFile(blob, fileName);
     } catch (error) {
         console.log(error);
+    } finally {
+        resetDownloadState();
     }
 }
 
 async function saveAllSelected() {
     const { data } = appState;
+    const ACTIVE_BUTTON = document.querySelector('.all-download-button');
     const date = new Date(data.date * 1000).toISOString().split('T')[0];
+    const total = appState.selected.size;
+    let processed = 0;
+    setGroupDownloadProgress(ACTIVE_BUTTON, 0);
     for (const index of appState.selected) {
         const item = data.media[index];
         try {
-            const respone = await fetch(item.url);
-            const blob = await respone.blob();
+            const blob = await fetchBestMediaBlob(item, ({ percent }) => {
+                setGroupDownloadProgress(ACTIVE_BUTTON, ((processed + percent / 100) / total) * 100);
+            });
             const title = `${data.user.username} | ${item.id} | ${date}`;
             saveFile(blob, title.replaceAll(' | ', '_') + `.${item.format}`);
         } catch (error) {
             console.log(error);
+        } finally {
+            processed++;
+            setGroupDownloadProgress(ACTIVE_BUTTON, (processed / total) * 100);
         }
     }
+    resetGroupDownloadState();
 }
 
 async function saveZip() {
-    const DOWNLOAD_BUTTON = document.querySelector('.download-button');
-    DOWNLOAD_BUTTON.classList.add('loading');
-    DOWNLOAD_BUTTON.textContent = 'Loading...';
-    DOWNLOAD_BUTTON.disabled = true;
+    const ACTIVE_BUTTON = document.querySelector('.zip-download-button');
+    setGroupDownloadProgress(ACTIVE_BUTTON, 0);
     const date = new Date(appState.data.date * 1000).toISOString().split('T')[0];
     const media = Array.from(appState.selected).map((index) => {
         const item = appState.data.media[index];
         return {
             title: `${appState.data.user.username}_${item.id}_${date}`,
             format: item.format,
-            url: item.url,
+            item,
         };
     });
     const zipFileName = `${media[0].title}.zip`;
     async function fetchSelectedMedia() {
-        let count = 0;
-        const results = await Promise.allSettled(
-            media.map(async (item) => {
-                const res = await fetch(item.url);
-                const blob = await res.blob();
-                const data = {
-                    title: item.title,
-                    data: blob,
-                };
-                data.title = `${data.title}.${item.format}`;
-                count++;
-                DOWNLOAD_BUTTON.textContent = `${count}/${media.length}`;
-                return data;
-            }),
-        );
-        results.forEach((promise) => {
-            if (promise.status === 'rejected') throw new Error('Fail to fetch');
-        });
-        return results.map((promise) => promise.value);
+        let processed = 0;
+        const results = [];
+        for (const mediaItem of media) {
+            const blob = await fetchBestMediaBlob(mediaItem.item, ({ percent }) => {
+                const downloadPercent = ((processed + percent / 100) / media.length) * 95;
+                setGroupDownloadProgress(ACTIVE_BUTTON, downloadPercent);
+            });
+            results.push({
+                title: `${mediaItem.title}.${mediaItem.format}`,
+                data: blob,
+            });
+            processed++;
+            setGroupDownloadProgress(ACTIVE_BUTTON, (processed / media.length) * 95);
+        }
+        return results;
     }
     try {
         const data = await fetchSelectedMedia();
+        setGroupDownloadProgress(ACTIVE_BUTTON, 96);
         const blob = await createZip(data);
+        setGroupDownloadProgress(ACTIVE_BUTTON, 100);
         saveFile(blob, zipFileName);
         appState.selected.clear();
         updateSelectedMedia();
-        resetDownloadState();
+        resetGroupDownloadState();
     } catch (error) {
         console.log(error);
-        resetDownloadState();
+        resetGroupDownloadState();
     }
 }
 
@@ -301,7 +377,7 @@ function renderMedia(data) {
                 updateSelectedMedia();
             } else {
                 const filename = media.title.replaceAll(' | ', '_') + `.${item.format}`;
-                saveMedia(media, filename);
+                saveMedia(item, filename);
             }
         });
         fragment.appendChild(itemDOM);

@@ -9,7 +9,11 @@
         "48": "icons/icon48.png",
         "128": "icons/icon128.png"
     },
-    "host_permissions": ["https://www.instagram.com/*"],
+    "host_permissions": [
+        "https://www.instagram.com/*",
+        "https://*.fbcdn.net/*",
+        "https://*.cdninstagram.com/*"
+    ],
     "action": {
         "default_icon": "icons/icon128.png"
     },
@@ -18,6 +22,8 @@
             "matches": ["https://www.instagram.com/*"],
             "js": [
                 "src/js/utils.js",
+                "src/js/dash.js",
+                "src/js/muxer-client.js",
                 "src/js/main.js",
                 "src/js/post.js",
                 "src/js/story.js",
@@ -37,6 +43,12 @@
             ],
             "css": [],
             "world": "MAIN"
+        }
+    ],
+    "web_accessible_resources": [
+        {
+            "resources": ["src/muxer/*", "lib/mp4box/*"],
+            "matches": ["https://www.instagram.com/*"]
         }
     ]
 }
