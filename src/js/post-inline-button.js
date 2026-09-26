@@ -1,7 +1,7 @@
 (() => {
     const BUTTON_CLASS = 'igd-post-inline-download';
     const DOWNLOAD_ALL_BUTTON_CLASS = 'igd-post-inline-download-all';
-    const ACTION_LABELS = new Set(['Like', 'Comment', 'Repost', 'Share', 'Share Post', 'Save']);
+    const OWN_BUTTONS = `.${BUTTON_CLASS}, .${DOWNLOAD_ALL_BUTTON_CLASS}`;
     let updateQueued = false;
 
     function isSupportedView() {
@@ -14,26 +14,46 @@
         return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
     }
 
-    function findShareButtons() {
-        return [...document.querySelectorAll('svg[aria-label="Share"], svg[aria-label="Share Post"]')]
-            .filter(isVisible)
-            .map((icon) => icon.closest('button, [role="button"]'))
-            .filter(Boolean);
+    // Icon geometry is independent of Instagram's translated accessibility labels.
+    // Keep the label fallback for older icon variants.
+    function isShareIcon(icon) {
+        const path = icon.querySelector('path')?.getAttribute('d') ?? '';
+        return path.startsWith('M13.973 20.046') || ['Share', 'Share Post'].includes(icon.getAttribute('aria-label'));
     }
 
-    function findActionsContainer(shareButton) {
-        let container = shareButton.parentElement;
-        while (container && container !== document.body) {
-            const labels = new Set(
-                [...container.querySelectorAll('svg[aria-label]')]
-                    .filter(isVisible)
-                    .map((icon) => icon.getAttribute('aria-label'))
-                    .filter((label) => ACTION_LABELS.has(label)),
-            );
-            if (labels.size >= 3) return container;
-            container = container.parentElement;
+    function findPostActionTargets() {
+        const targets = [];
+        const handledRoots = new Set();
+        for (const icon of document.querySelectorAll('svg[aria-label]')) {
+            if (!isShareIcon(icon) || !isVisible(icon)) continue;
+            const shareButton = icon.closest('button, [role="button"]');
+            if (!shareButton) continue;
+            const root = getPostRoot(shareButton);
+            if (handledRoots.has(root) || (root === document && !IG_POST_REGEX.test(location.pathname))) continue;
+
+            // Stop at the innermost horizontal action group. The outer grid has
+            // a separate Save cell: inserting a new child there creates a new row.
+            let container = shareButton.parentElement;
+            while (container && container !== root && container !== document.body) {
+                const style = getComputedStyle(container);
+                if (style.display === 'grid' || style.display === 'inline-grid') break;
+                const icons = [...container.querySelectorAll('svg[aria-label]')].filter(
+                    (item) => !item.closest(OWN_BUTTONS),
+                );
+                if (
+                    ['flex', 'inline-flex'].includes(style.display) &&
+                    ['row', 'row-reverse'].includes(style.flexDirection) &&
+                    icons.length >= 3 &&
+                    icons.length <= 6
+                ) {
+                    handledRoots.add(root);
+                    targets.push({ actionsContainer: container, shareButton });
+                    break;
+                }
+                container = container.parentElement;
+            }
         }
-        return null;
+        return targets;
     }
 
     function findDirectChild(container, descendant) {
@@ -71,7 +91,8 @@
     }
 
     function isCarouselPost(root) {
-        if (root.querySelectorAll('button[aria-label^="Go to slide"]').length > 1) return true;
+        const activeSlide = root.querySelector('button[aria-current="step"]');
+        if (getSlideButtons(activeSlide).length > 1) return true;
 
         const media = [...root.querySelectorAll('img, video')]
             .filter(isVisible)
@@ -81,13 +102,20 @@
 
         const largestArea = Math.max(...media.map((rect) => rect.width * rect.height));
         const mainMedia = media.filter((rect) => rect.width * rect.height >= largestArea * 0.65);
-        const controls = [
-            ...new Set(
-                [...root.querySelectorAll('[aria-label="Next"], [aria-label="Go back"], [aria-label="Previous"]')]
-                    .map((element) => element.closest('button, [role="button"]'))
-                    .filter((element) => element && isVisible(element)),
-            ),
-        ];
+        const controls = [...root.querySelectorAll('button, [role="button"]')].filter((element) => {
+            if (!isVisible(element) || element.closest(`.${BUTTON_CLASS}, .${DOWNLOAD_ALL_BUTTON_CLASS}`)) return false;
+            const rect = element.getBoundingClientRect();
+            if (rect.width > 64 || rect.height > 64) return false;
+            return mainMedia.some((mediaRect) => {
+                const centerX = rect.left + rect.width / 2;
+                const centerY = rect.top + rect.height / 2;
+                const nearHorizontalEdge =
+                    Math.abs(centerX - mediaRect.left) <= 48 || Math.abs(centerX - mediaRect.right) <= 48;
+                const nearVerticalCenter =
+                    Math.abs(centerY - (mediaRect.top + mediaRect.height / 2)) <= mediaRect.height * 0.25;
+                return nearHorizontalEdge && nearVerticalCenter;
+            });
+        });
 
         return controls.some((control) => {
             const rect = control.getBoundingClientRect();
@@ -103,10 +131,25 @@
         });
     }
 
+    function getSlideButtons(activeSlide) {
+        if (!activeSlide) return [];
+        let container = activeSlide.parentElement;
+        while (container && container !== document.body) {
+            const buttons = [...container.querySelectorAll('button')].filter((button) => {
+                const rect = button.getBoundingClientRect();
+                return isVisible(button) && rect.width <= 32 && rect.height <= 32;
+            });
+            if (buttons.length > 1 && buttons.length <= 20 && buttons.includes(activeSlide)) return buttons;
+            container = container.parentElement;
+        }
+        return [];
+    }
+
     function getCurrentPostMediaIndex(root) {
-        const activeSlide = root.querySelector('button[aria-current="step"][aria-label^="Go to slide"]');
-        const slideNumber = Number(activeSlide?.getAttribute('aria-label')?.match(/\d+/)?.[0]);
-        if (Number.isInteger(slideNumber) && slideNumber > 0) return slideNumber - 1;
+        const activeSlide = root.querySelector('button[aria-current="step"]');
+        const slideButtons = getSlideButtons(activeSlide);
+        const activeIndex = slideButtons.indexOf(activeSlide);
+        if (activeIndex >= 0) return activeIndex;
 
         const urlIndex = Number(new URL(window.location.href).searchParams.get('img_index'));
         return Number.isInteger(urlIndex) && urlIndex > 0 ? urlIndex - 1 : 0;
@@ -156,8 +199,7 @@
         }
 
         const handledContainers = new Set();
-        for (const shareButton of findShareButtons()) {
-            const actionsContainer = findActionsContainer(shareButton);
+        for (const { actionsContainer, shareButton } of findPostActionTargets()) {
             if (!actionsContainer || handledContainers.has(actionsContainer)) continue;
             handledContainers.add(actionsContainer);
 
@@ -204,12 +246,28 @@
         updateQueued = true;
         requestAnimationFrame(() => {
             updateQueued = false;
-            syncPostDownloadButtons();
+            // Our insertions must not schedule another layout pass.
+            observer.disconnect();
+            try {
+                syncPostDownloadButtons();
+            } finally {
+                observePage();
+            }
         });
     }
 
-    const observer = new MutationObserver(queueUpdate);
-    observer.observe(document.body, { childList: true, subtree: true });
+    const observer = new MutationObserver((records) => {
+        if (records.some((record) => !record.target.closest?.(OWN_BUTTONS))) queueUpdate();
+    });
+    function observePage() {
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true,
+            attributes: true,
+            attributeFilter: ['aria-current'],
+        });
+    }
+    observePage();
     window.addEventListener('downloadUiModeChange', queueUpdate);
     navigation.addEventListener('navigate', queueUpdate);
     queueUpdate();

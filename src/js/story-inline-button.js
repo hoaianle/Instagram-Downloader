@@ -8,9 +8,63 @@
         return window.location.pathname.startsWith(STORY_PATH_PREFIX);
     }
 
-    function findStoryPlaybackButton() {
+    function findLabelledStoryPlaybackButton() {
         const playbackIcon = document.querySelector('svg[aria-label="Play"], svg[aria-label="Pause"]');
         return playbackIcon?.closest('[role="button"]') ?? null;
+    }
+
+    function findDirectChild(container, descendant) {
+        let child = descendant;
+        while (child?.parentElement && child.parentElement !== container) child = child.parentElement;
+        return child?.parentElement === container ? child : null;
+    }
+
+    function getToolbarButtons(toolbar) {
+        const buttons = [];
+        const seen = new Set();
+        for (const icon of toolbar.querySelectorAll('svg[aria-label]')) {
+            const button = icon.closest('button, [role="button"]');
+            if (!button || seen.has(button) || button.closest(`.${BUTTON_CLASS}, .${DOWNLOAD_ALL_BUTTON_CLASS}`)) {
+                continue;
+            }
+            const rect = button.getBoundingClientRect();
+            if (rect.width <= 72 && rect.height <= 72 && rect.width > 0 && rect.height > 0) {
+                seen.add(button);
+                buttons.push(button);
+            }
+        }
+        return buttons;
+    }
+
+    function findStoryControls() {
+        const labelledPlaybackButton = findLabelledStoryPlaybackButton();
+        const labelledWrapper = labelledPlaybackButton?.parentElement;
+        const labelledToolbar = labelledWrapper?.parentElement;
+        if (labelledToolbar && getStoryItemCount(labelledToolbar) > 0) {
+            return {
+                playbackButton: labelledPlaybackButton,
+                playbackWrapper: labelledWrapper,
+                toolbar: labelledToolbar,
+            };
+        }
+
+        const nativeButtons = [...document.querySelectorAll('button, [role="button"]')];
+        for (const nativeButton of nativeButtons) {
+            let toolbar = nativeButton.parentElement;
+            while (toolbar && toolbar !== document.body) {
+                if (getStoryItemCount(toolbar) > 0) {
+                    const toolbarButtons = getToolbarButtons(toolbar);
+                    if (toolbarButtons.length >= 2) {
+                        const playbackButton = toolbarButtons.at(-2);
+                        const playbackWrapper = findDirectChild(toolbar, playbackButton);
+                        if (playbackWrapper) return { playbackButton, playbackWrapper, toolbar };
+                    }
+                }
+                toolbar = toolbar.parentElement;
+            }
+        }
+
+        return { playbackButton: null, playbackWrapper: null, toolbar: null };
     }
 
     function getCurrentStoryIndex(toolbar) {
@@ -97,9 +151,7 @@
             return;
         }
 
-        const playbackButton = findStoryPlaybackButton();
-        const playbackWrapper = playbackButton?.parentElement;
-        const toolbar = playbackWrapper?.parentElement;
+        const { playbackButton, playbackWrapper, toolbar } = findStoryControls();
         if (!playbackButton || !playbackWrapper || !toolbar) return;
 
         if (existingButton?.parentElement !== toolbar) {

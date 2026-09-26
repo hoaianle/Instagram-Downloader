@@ -16,7 +16,7 @@
     outline: 1px solid rgb(var(--ig-separator));
     position: fixed;
     bottom: 140px;
-    right: 20px;
+    inset-inline-end: 20px;
     overflow: hidden;
     user-select: none;
     -webkit-user-select: none;
@@ -40,6 +40,10 @@
     transform: scale(0);
     pointer-events: none;
     opacity: 0.6;
+}
+
+.display-container.hide:dir(rtl) {
+    transform-origin: 15% bottom;
 }
 
 .display-container > .title-container {
@@ -490,6 +494,10 @@
 }
 
 .igd-settings-dialog {
+    /* The settings UI is English, independently of Instagram's page direction. */
+    direction: ltr;
+    text-align: left;
+    unicode-bidi: isolate;
     display: flex;
     flex-direction: column;
     width: min(680px, 100%);

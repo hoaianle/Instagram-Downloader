@@ -192,7 +192,7 @@
         overlay.className = MODAL_CLASS;
         overlay.hidden = true;
         overlay.innerHTML = `
-            <section class="igd-settings-dialog" role="dialog" aria-modal="true" aria-labelledby="igd-settings-title">
+            <section class="igd-settings-dialog" dir="ltr" lang="en" role="dialog" aria-modal="true" aria-labelledby="igd-settings-title">
                 <header class="igd-settings-header">
                     <div>
                         <h2 id="igd-settings-title">Instagram Downloader</h2>
@@ -315,7 +315,8 @@
 
     function isSidebarProfileCandidate(link) {
         const rect = link.getBoundingClientRect();
-        if (rect.left >= 100 || rect.width < 40 || rect.height < 48) return false;
+        const nearViewportEdge = rect.left < 100 || window.innerWidth - rect.right < 100;
+        if (!nearViewportEdge || rect.width < 40 || rect.height < 48) return false;
         if (link.origin !== window.location.origin) return false;
         const path = new URL(link.href).pathname;
         return !RESERVED_SIDEBAR_PATHS.has(path) && /^\/[A-Za-z0-9._]+\/?$/.test(path);
@@ -330,7 +331,8 @@
         let container = profileLink.parentElement;
         while (container && container !== document.body) {
             const rect = container.getBoundingClientRect();
-            if (container.children.length >= 5 && rect.height > 300 && rect.left < 100) return container;
+            const nearViewportEdge = rect.left < 100 || window.innerWidth - rect.right < 100;
+            if (container.children.length >= 5 && rect.height > 300 && nearViewportEdge) return container;
             container = container.parentElement;
         }
         return null;
