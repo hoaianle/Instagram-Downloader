@@ -241,6 +241,17 @@
     }
 
     function getCurrentPostMediaIndex(root) {
+        // Handle /p/<shortcode>
+        if (IG_POST_REGEX.test(window.location.pathname)) {
+            const slideContainer = root.querySelector('._acnb._acnf')?.parentElement;
+            if (slideContainer) {
+                const activeIndex = Array.from(slideContainer.children).findIndex((element) => {
+                    return element.classList.contains('_acnf');
+                });
+                return activeIndex;
+            }
+        }
+        // Handle home page
         const activeSlide = root.querySelector('button[aria-current="step"]');
         const slideButtons = getSlideButtons(activeSlide);
         const activeIndex = slideButtons.indexOf(activeSlide);
