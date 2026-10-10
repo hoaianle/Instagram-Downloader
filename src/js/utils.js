@@ -358,33 +358,36 @@ function resolveSelectedStoryMedia(data, selection) {
 function resolveSelectedPostMedia(data, selection, shortcode) {
     if (!selection?.stable || selection.shortcode !== shortcode) return null;
 
+    let mediaBySource = null;
     const selectedCacheId = getMediaCacheId(selection.sourceUrl);
     if (selectedCacheId) {
-        const mediaByCacheId = data.media.find(
+        mediaBySource = data.media.find(
             (item) => getMediaId(item.id) === selectedCacheId || getMediaCacheId(item.url) === selectedCacheId,
         );
-        if (mediaByCacheId) return mediaByCacheId;
     }
 
-    const selectedPath = getMediaUrlPath(selection.sourceUrl);
-    if (selectedPath) {
-        const mediaByUrl = data.media.find((item) => getMediaUrlPath(item.url) === selectedPath);
-        if (mediaByUrl) return mediaByUrl;
+    if (!mediaBySource) {
+        const selectedPath = getMediaUrlPath(selection.sourceUrl);
+        if (selectedPath) {
+            mediaBySource = data.media.find((item) => getMediaUrlPath(item.url) === selectedPath) ?? null;
+        }
     }
 
     const index = Number(selection.index);
     const itemCount = Number(selection.itemCount);
-    if (
+    const mediaByIndex =
         selection.indexConfident &&
         Number.isInteger(index) &&
         index >= 0 &&
         index < data.media.length &&
         itemCount === data.media.length
-    ) {
-        return data.media[index];
-    }
+            ? data.media[index]
+            : null;
 
-    return null;
+    // Both signals should agree. Abort safely if Instagram is still transitioning between slides.
+    if (mediaBySource && mediaByIndex && mediaBySource !== mediaByIndex) return null;
+
+    return mediaByIndex ?? mediaBySource;
 }
 
 async function downloadInlineMedia({

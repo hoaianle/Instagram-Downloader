@@ -253,12 +253,37 @@
     }
 
     function getVisiblePostMediaSource(root) {
+        const getClippedVisibleArea = (media) => {
+            const rect = media.getBoundingClientRect();
+            let left = Math.max(rect.left, 0);
+            let top = Math.max(rect.top, 0);
+            let right = Math.min(rect.right, innerWidth);
+            let bottom = Math.min(rect.bottom, innerHeight);
+
+            let container = media.parentElement;
+            while (container && root.contains(container)) {
+                const style = getComputedStyle(container);
+                const containerRect = container.getBoundingClientRect();
+                if (['hidden', 'clip', 'scroll', 'auto'].includes(style.overflowX)) {
+                    left = Math.max(left, containerRect.left);
+                    right = Math.min(right, containerRect.right);
+                }
+                if (['hidden', 'clip', 'scroll', 'auto'].includes(style.overflowY)) {
+                    top = Math.max(top, containerRect.top);
+                    bottom = Math.min(bottom, containerRect.bottom);
+                }
+                if (right <= left || bottom <= top) return 0;
+                if (container === root) break;
+                container = container.parentElement;
+            }
+
+            return Math.max(0, right - left) * Math.max(0, bottom - top);
+        };
+
         const candidates = [...root.querySelectorAll('img, video')]
             .map((media) => {
                 const rect = media.getBoundingClientRect();
-                const visibleWidth = Math.max(0, Math.min(rect.right, innerWidth) - Math.max(rect.left, 0));
-                const visibleHeight = Math.max(0, Math.min(rect.bottom, innerHeight) - Math.max(rect.top, 0));
-                return { media, rect, visibleArea: visibleWidth * visibleHeight };
+                return { media, rect, visibleArea: getClippedVisibleArea(media) };
             })
             .filter(({ rect, visibleArea }) => rect.width >= 200 && rect.height >= 200 && visibleArea > 0)
             .sort((first, second) => second.visibleArea - first.visibleArea);
