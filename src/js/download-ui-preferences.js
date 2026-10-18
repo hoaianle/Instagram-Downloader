@@ -46,3 +46,37 @@ const downloadUiPreferences = Object.freeze(
         };
     })(),
 );
+
+const downloadNotificationPreferences = Object.freeze({
+    get durationSeconds() {
+        try {
+            const value = Number(localStorage.getItem('instagramDownloaderNotificationSeconds'));
+            return Number.isInteger(value) && value >= 1 && value <= 15 ? value : 5;
+        } catch {
+            return 5;
+        }
+    },
+    setDurationSeconds(value) {
+        const seconds = Number(value);
+        if (!Number.isInteger(seconds) || seconds < 1 || seconds > 15) return;
+        try {
+            localStorage.setItem('instagramDownloaderNotificationSeconds', String(seconds));
+        } catch (error) {
+            console.log(error);
+        }
+    },
+    get enabled() {
+        try {
+            return localStorage.getItem('instagramDownloaderNotifications') === 'true';
+        } catch {
+            return false;
+        }
+    },
+    setEnabled(enabled) {
+        try {
+            localStorage.setItem('instagramDownloaderNotifications', String(Boolean(enabled)));
+        } catch (error) {
+            console.log(error);
+        }
+    },
+});

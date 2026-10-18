@@ -984,3 +984,88 @@
         transform: translate(-50%, -50%) rotate(360deg);
     }
 }
+
+/* Download notices use Instagram theme colors and do not intercept page clicks. */
+#igd-download-notices {
+    position: fixed;
+    bottom: 24px;
+    inset-inline-end: 24px;
+    z-index: 2147483647;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-width: min(380px, calc(100vw - 48px));
+    pointer-events: none;
+}
+.igd-download-notice {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 16px 18px;
+    border: 1px solid rgba(var(--ig-separator, 219, 219, 219), 1);
+    border-radius: 14px;
+    background: rgb(var(--ig-primary-background, 255, 255, 255));
+    color: rgb(var(--ig-primary-text, 38, 38, 38));
+    box-shadow: 0 8px 30px rgb(0 0 0 / 18%);
+    font:
+        14px/1.5 system-ui,
+        sans-serif;
+    overflow-wrap: anywhere;
+    pointer-events: auto;
+    text-align: left;
+}
+.igd-download-notice button {
+    flex: none;
+    border: 0;
+    padding: 0 3px;
+    background: transparent;
+    color: inherit;
+    font:
+        22px/1 system-ui,
+        sans-serif;
+    cursor: pointer;
+}
+.igd-download-notice-warning {
+    color: #ed4956;
+    font-weight: 600;
+}
+.igd-download-notice button:focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: 3px;
+}
+
+.igd-download-notice > span {
+    white-space: pre-line;
+    max-height: min(320px, 50vh);
+    overflow-y: auto;
+}
+.igd-notifications-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-block: 12px;
+    cursor: pointer;
+}
+.igd-notification-duration {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 10px;
+    margin-top: 16px;
+}
+.igd-notification-duration input,
+.igd-notification-duration small {
+    grid-column: 1 / -1;
+    width: 100%;
+}
+.igd-notification-duration input {
+    accent-color: #5865f2;
+    cursor: pointer;
+}
+.igd-notification-duration output {
+    font-variant-numeric: tabular-nums;
+}
+.igd-notifications-option input {
+    width: 18px;
+    height: 18px;
+    accent-color: #5865f2;
+}

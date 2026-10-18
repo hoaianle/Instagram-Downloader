@@ -210,20 +210,6 @@ function resetInlineDownloadProgress(button, operationKey = button?.dataset.down
     for (const candidate of buttons) clearInlineDownloadProgress(candidate);
 }
 
-async function getInlineDownloadData(type, shortcode) {
-    if (type === 'post') {
-        if (shortcode) return downloadPostPhotos(shortcode);
-        appState.setCurrentShortcode();
-        return downloadPostPhotos();
-    }
-    if (type === 'highlights') {
-        appState.setCurrentHightlightsId();
-        return downloadStoryPhotos('highlights');
-    }
-    appState.setCurrentUsername();
-    return downloadStoryPhotos('stories');
-}
-
 function getDownloadFilenameScope(data) {
     if (Object.values(DOWNLOAD_FILENAME_SCOPES).includes(data?.type)) return data.type;
     if (Object.values(DOWNLOAD_FILENAME_SCOPES).includes(appState.currentDisplay)) return appState.currentDisplay;
@@ -369,186 +355,97 @@ function findMediaByRenderedUrl(data, mediaUrl) {
     );
 }
 
-function resolveSelectedStoryMedia(data, selection) {
-    if (!selection) return null;
-
-    const selectedMediaId = getMediaId(selection.mediaId);
-    if (selectedMediaId) {
-        const mediaById = data.media.find((item) => getMediaId(item.id) === selectedMediaId);
-        if (mediaById) return mediaById;
-    }
-
-    const mediaBySource = findMediaByRenderedUrl(data, selection.sourceUrl);
-    if (mediaBySource) return mediaBySource;
-
-    const mediaByPoster = findMediaByRenderedUrl(data, selection.posterUrl);
-    if (mediaByPoster) return mediaByPoster;
-
-    if (!selection.stable) return null;
-
-    const index = Number(selection.index);
-    const itemCount = Number(selection.itemCount);
-    if (
-        selection.indexConfident &&
-        Number.isInteger(index) &&
-        index >= 0 &&
-        index < data.media.length &&
-        itemCount === data.media.length
-    ) {
-        return data.media[index];
-    }
-
-    return null;
-}
-
-function resolveSelectedPostMedia(data, selection, shortcode) {
-    if (!selection || selection.shortcode !== shortcode) return null;
-
-    const mediaBySource =
-        findMediaByRenderedUrl(data, selection.sourceUrl) ?? findMediaByRenderedUrl(data, selection.posterUrl);
-    if (mediaBySource) return mediaBySource;
-
-    if (!selection.stable) return null;
-
-    const index = Number(selection.index);
-    const itemCount = Number(selection.itemCount);
-    const indexMatchesMedia = selection.indexSource === 'track' || itemCount === data.media.length;
-    const mediaByIndex =
-        selection.indexConfident &&
-        Number.isInteger(index) &&
-        index >= 0 &&
-        index < data.media.length &&
-        indexMatchesMedia
-            ? data.media[index]
-            : null;
-
-    return mediaByIndex;
-}
-
-async function downloadInlineMedia({
-    button,
-    type,
-    downloadAll = false,
-    index = 0,
-    selection = null,
-    shortcode,
-    operationKey = '',
-}) {
-    if (button.disabled) return;
-    setInlineDownloadProgress(button, 0, operationKey);
-    try {
-        const data = await getInlineDownloadData(type, shortcode);
-        if (!data?.media?.length) throw new Error('No downloadable media found');
-
-        if (!downloadAll) {
-            let item = null;
-            if (type === 'stories' || type === 'highlights') item = resolveSelectedStoryMedia(data, selection);
-            else if (type === 'post') item = resolveSelectedPostMedia(data, selection, shortcode);
-            else item = data.media[Math.min(Math.max(index, 0), data.media.length - 1)];
-            if (!item) throw new Error('Unable to identify the currently displayed media safely');
-            const blob = await fetchBestMediaBlob(item, ({ percent }) =>
-                setInlineDownloadProgress(button, percent, operationKey),
-            );
-            setInlineDownloadProgress(button, 100, operationKey);
-            saveFile(blob, getMediaFileName(data, item, blob));
-            return;
-        }
-
-        const files = [];
-        const usedNames = new Set();
-        let processed = 0;
-        for (const item of data.media) {
-            const blob = await fetchBestMediaBlob(item, ({ percent }) => {
-                setInlineDownloadProgress(button, ((processed + percent / 100) / data.media.length) * 95, operationKey);
-            });
-            files.push({ title: getUniqueArchiveEntryName(getMediaFileName(data, item, blob), usedNames), data: blob });
-            processed++;
-            setInlineDownloadProgress(button, (processed / data.media.length) * 95, operationKey);
-        }
-
-        setInlineDownloadProgress(button, 96, operationKey);
-        const zip = await createZip(files);
-        setInlineDownloadProgress(button, 100, operationKey);
-        saveFile(zip, getArchiveFileName(data));
-    } catch (error) {
-        console.log(error);
-    } finally {
-        setTimeout(() => resetInlineDownloadProgress(button, operationKey), 300);
-    }
-}
-
 async function saveMedia(data, item) {
-    const DOWNLOAD_BUTTON = document.querySelector('.download-button');
+    const button = document.querySelector('.download-button');
+    const report = createDownloadReport();
+    setDownloadReportMedia(report, data, [item]);
     try {
-        setButtonProgress(DOWNLOAD_BUTTON, 0);
-        const blob = await fetchBestMediaBlob(item, ({ percent }) => {
-            setButtonProgress(DOWNLOAD_BUTTON, percent);
-        });
-        saveFile(blob, getMediaFileName(data, item, blob));
+        const result = await fetchMediaWithRecovery(item, ({ percent }) => setButtonProgress(button, percent), report);
+        saveFile(result.blob, getMediaFileName(data, result.item, result.blob));
+        recordDownloadedItem(report, result);
+        report.saved = true;
     } catch (error) {
         console.log(error);
+        if (isDownloadRateLimited(error)) report.stopped = true;
+        report.errors.push(error.message || 'Download failed.');
     } finally {
+        showDownloadReport(report);
         resetDownloadState();
     }
 }
 
 async function saveAllSelected() {
     const { data } = appState;
-    const ACTIVE_BUTTON = document.querySelector('.all-download-button');
-    const total = appState.selected.size;
-    let processed = 0;
-    setGroupDownloadProgress(ACTIVE_BUTTON, 0);
-    for (const index of appState.selected) {
-        const item = data.media[index];
-        try {
-            const blob = await fetchBestMediaBlob(item, ({ percent }) => {
-                setGroupDownloadProgress(ACTIVE_BUTTON, ((processed + percent / 100) / total) * 100);
-            });
-            saveFile(blob, getMediaFileName(data, item, blob));
-        } catch (error) {
-            console.log(error);
-        } finally {
-            processed++;
-            setGroupDownloadProgress(ACTIVE_BUTTON, (processed / total) * 100);
+    const button = document.querySelector('.all-download-button');
+    const media = [...appState.selected].map((index) => data.media[index]);
+    const report = createDownloadReport(media.length);
+    setDownloadReportMedia(report, data, media);
+    setGroupDownloadProgress(button, 0);
+    try {
+        for (let index = 0; index < media.length; index++) {
+            try {
+                const result = await fetchMediaWithRecovery(
+                    media[index],
+                    ({ percent }) => {
+                        setGroupDownloadProgress(button, ((index + percent / 100) / media.length) * 100);
+                    },
+                    report,
+                );
+                saveFile(result.blob, getMediaFileName(data, result.item, result.blob));
+                recordDownloadedItem(report, result);
+                report.saved = true;
+            } catch (error) {
+                if (error.name === 'AbortError') throw error;
+                report.skipped++;
+                report.skippedIds.push(getDownloadReportLabel(report, media[index]));
+                report.errors.push(getDownloadReportLabel(report, media[index]) + ': ' + error.message);
+                console.log(error);
+                if (isDownloadRateLimited(error)) {
+                    report.stopped = true;
+                    break;
+                }
+            }
+            setGroupDownloadProgress(button, ((index + 1) / media.length) * 100);
         }
+    } catch (error) {
+        console.log(error);
+        report.errors.push(error.message || 'Download interrupted.');
+    } finally {
+        showDownloadReport(report);
+        resetGroupDownloadState();
     }
-    resetGroupDownloadState();
 }
 
 async function saveZip() {
-    const ACTIVE_BUTTON = document.querySelector('.zip-download-button');
-    setGroupDownloadProgress(ACTIVE_BUTTON, 0);
-    const media = Array.from(appState.selected).map((index) => ({ item: appState.data.media[index] }));
-    const zipFileName = getArchiveFileName(appState.data, media[0]?.item);
-    async function fetchSelectedMedia() {
-        let processed = 0;
-        const results = [];
-        const usedNames = new Set();
-        for (const mediaItem of media) {
-            const blob = await fetchBestMediaBlob(mediaItem.item, ({ percent }) => {
-                const downloadPercent = ((processed + percent / 100) / media.length) * 95;
-                setGroupDownloadProgress(ACTIVE_BUTTON, downloadPercent);
-            });
-            results.push({
-                title: getUniqueArchiveEntryName(getMediaFileName(appState.data, mediaItem.item, blob), usedNames),
-                data: blob,
-            });
-            processed++;
-            setGroupDownloadProgress(ACTIVE_BUTTON, (processed / media.length) * 95);
-        }
-        return results;
-    }
+    const button = document.querySelector('.zip-download-button');
+    const data = appState.data;
+    const selected = [...appState.selected];
+    const media = selected.map((index) => data.media[index]);
+    const report = createDownloadReport();
+    setGroupDownloadProgress(button, 0);
     try {
-        const data = await fetchSelectedMedia();
-        setGroupDownloadProgress(ACTIVE_BUTTON, 96);
-        const blob = await createZip(data);
-        setGroupDownloadProgress(ACTIVE_BUTTON, 100);
-        saveFile(blob, zipFileName);
-        appState.selected.clear();
+        const files = await collectDownloadFiles(
+            data,
+            media,
+            (percent) => setGroupDownloadProgress(button, percent),
+            report,
+        );
+        if (!files.length) return;
+        setGroupDownloadProgress(button, 96);
+        const blob = await createZip(files);
+        setGroupDownloadProgress(button, 100);
+        saveFile(blob, getArchiveFileName(data, media[0]));
+        report.saved = true;
+        // Retain the selection after a partial download so it can be retried.
+        if (!report.skipped && !report.stopped) {
+            selected.forEach((index) => appState.selected.delete(index));
+        }
         updateSelectedMedia();
-        resetGroupDownloadState();
     } catch (error) {
         console.log(error);
+        report.errors.push(error.message || 'Could not finish the ZIP download.');
+    } finally {
+        showDownloadReport(report);
         resetGroupDownloadState();
     }
 }

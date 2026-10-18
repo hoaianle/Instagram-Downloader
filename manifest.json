@@ -31,11 +31,24 @@
                 "src/js/utils.js",
                 "src/js/dash.js",
                 "src/js/muxer-client.js",
+                "src/js/post-media-selection.js",
+                "src/js/download-views/feed.js",
+                "src/js/download-views/modal.js",
+                "src/js/download-views/detail.js",
+                "src/js/download-views/reels.js",
+                "src/js/download-views/router.js",
+                "src/js/story-media-selection.js",
+                "src/js/download-feedback.js",
+                "src/js/legacy-media.js",
+                "src/js/download-recovery.js",
+                "src/js/inline-download.js",
                 "src/js/story-inline-button.js",
                 "src/js/post-inline-button.js",
                 "src/js/main.js",
                 "src/js/post.js",
+                "src/js/story-data.js",
                 "src/js/story.js",
+                "src/js/highlight.js",
                 "src/js/zip.js",
                 "lib/js.cookie.min.js"
             ]
@@ -45,7 +58,7 @@
             "js": [
                 "src/js/global/utils.js",
                 "src/js/global/home-scroll-handler.js",
-                "src/js/global/stories-view-handler.js",
+                "src/js/global/story-owner-bridge.js",
                 "src/js/global/post-modal-view-handler.js",
                 "src/js/global/reels-scroll-handler.js"
             ],
