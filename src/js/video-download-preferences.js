@@ -3,6 +3,7 @@ const VIDEO_DOWNLOAD_MODES = Object.freeze({
     H264: 'h264',
 });
 const VIDEO_DOWNLOAD_MODE_STORAGE_KEY = 'instagramDownloaderVideoMode';
+const VIDEO_DOWNLOAD_FALLBACK_STORAGE_KEY = 'instagramDownloaderVideoFallback';
 
 const videoDownloadPreferences = Object.freeze(
     (() => {
@@ -21,6 +22,12 @@ const videoDownloadPreferences = Object.freeze(
         }
 
         let mode = getSavedMode();
+        let fallbackEnabled = true;
+        try {
+            fallbackEnabled = localStorage.getItem(VIDEO_DOWNLOAD_FALLBACK_STORAGE_KEY) !== 'false';
+        } catch (error) {
+            // Keep fallback available when storage is inaccessible.
+        }
 
         return {
             get mode() {
@@ -37,6 +44,17 @@ const videoDownloadPreferences = Object.freeze(
             },
             usesProgressive() {
                 return mode === VIDEO_DOWNLOAD_MODES.H264;
+            },
+            get fallbackEnabled() {
+                return fallbackEnabled;
+            },
+            setFallbackEnabled(value) {
+                fallbackEnabled = Boolean(value);
+                try {
+                    localStorage.setItem(VIDEO_DOWNLOAD_FALLBACK_STORAGE_KEY, String(fallbackEnabled));
+                } catch (error) {
+                    console.log(error);
+                }
             },
         };
     })(),

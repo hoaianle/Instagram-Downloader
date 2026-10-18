@@ -129,11 +129,33 @@ async function fetchProgressiveMediaBlob(url, onProgress) {
     return new Blob(chunks, { type: response.headers.get('content-type') || '' });
 }
 
+// Track fallback metadata per download without changing the cached DASH item.
+const progressiveFallbackBlobs = new WeakSet();
+
 async function fetchBestMediaBlob(item, onProgress) {
     if (item.isVideo && videoDownloadPreferences.usesProgressive()) {
         return fetchProgressiveMediaBlob(item.url, onProgress);
     }
-    if (item.isVideo && item.dash) return muxDashMedia(item.dash, onProgress);
+    if (item.isVideo && item.dash) {
+        const allowFallback = videoDownloadPreferences.fallbackEnabled;
+        try {
+            return await muxDashMedia(item.dash, onProgress);
+        } catch (error) {
+            // Do not continue after cancellation or make another request on rate limits.
+            if (
+                !allowFallback ||
+                error.name === 'AbortError' ||
+                error.status === 429 ||
+                /\(429\)/.test(error.message || '')
+            ) {
+                throw error;
+            }
+            onProgress?.({ stage: 'Downloading progressive fallback', percent: 0 });
+            const blob = await fetchProgressiveMediaBlob(item.url, onProgress);
+            progressiveFallbackBlobs.add(blob);
+            return blob;
+        }
+    }
     return fetchProgressiveMediaBlob(item.url, onProgress);
 }
 
@@ -261,6 +283,15 @@ function resolveMediaFormatFromContentType(contentType) {
 }
 
 function getMediaFileName(data, item, blob) {
+    if (progressiveFallbackBlobs.has(blob)) {
+        item = {
+            ...item,
+            width: item.progressiveWidth || 0,
+            height: item.progressiveHeight || 0,
+            videoBitrate: 0,
+            videoCodec: '',
+        };
+    }
     const scope = getDownloadFilenameScope(data);
     const values = getDownloadFilenameValues(data, item);
     const baseName = downloadFilenamePreferences.formatMedia(scope, values);

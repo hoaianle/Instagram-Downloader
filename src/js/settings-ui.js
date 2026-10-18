@@ -252,6 +252,16 @@
                             </label>
                         </div>
                     </section>
+                    <section class="igd-settings-section">
+                        <label class="igd-settings-option">
+                            <input type="checkbox" name="igd-video-download-fallback">
+                            <span class="igd-settings-radio"></span>
+                            <span>
+                                <strong>Fall back when DASH fails</strong>
+                                <small>Try Instagram's progressive video if the highest-quality download fails. Enabled by default; fallback quality may be lower.</small>
+                            </span>
+                        </label>
+                    </section>
                     <section class="igd-settings-section igd-filename-settings">
                         <h3>File name templates</h3>
                         <p class="igd-settings-help">Drag variables into a row or click one to add it to the active row. Underscores are added automatically; unavailable values are skipped.</p>
@@ -315,6 +325,9 @@
         overlay.querySelectorAll('input[name="igd-video-download-mode"]').forEach((input) => {
             input.addEventListener('change', () => videoDownloadPreferences.setMode(input.value));
         });
+        overlay.querySelector('input[name="igd-video-download-fallback"]').addEventListener('change', (event) => {
+            videoDownloadPreferences.setFallbackEnabled(event.target.checked);
+        });
         bindFilenameBuilder(overlay);
         document.addEventListener('keydown', (event) => {
             if (event.key === 'Escape' && !overlay.hidden) closeModal();
@@ -337,6 +350,8 @@
             `input[name="igd-video-download-mode"][value="${videoDownloadPreferences.mode}"]`,
         );
         if (selectedVideoMode) selectedVideoMode.checked = true;
+        modal.querySelector('input[name="igd-video-download-fallback"]').checked =
+            videoDownloadPreferences.fallbackEnabled;
         const dateFormatSelect = modal.querySelector('.igd-date-format-select');
         if (dateFormatSelect) dateFormatSelect.value = downloadFilenamePreferences.dateFormat;
         Object.values(DOWNLOAD_FILENAME_SCOPES).forEach((scope) => renderFilenameRow(modal, scope));
