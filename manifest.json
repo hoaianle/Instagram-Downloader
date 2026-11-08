@@ -17,10 +17,10 @@
         {
             "matches": ["https://www.instagram.com/*"],
             "js": [
-                "src/js/download-ui-preferences.js",
-                "src/js/video-download-preferences.js",
-                "src/js/filename-preferences.js",
-                "src/js/settings-ui.js"
+                "src/js/settings/download-ui-preferences.js",
+                "src/js/settings/video-download-preferences.js",
+                "src/js/settings/filename-preferences.js",
+                "src/js/settings/settings-ui.js"
             ],
             "css": ["src/style/style.css"],
             "run_at": "document_start"
@@ -29,8 +29,8 @@
             "matches": ["https://www.instagram.com/*"],
             "js": [
                 "src/js/utils.js",
-                "src/js/dash.js",
-                "src/js/muxer-client.js",
+                "src/js/muxer/dash.js",
+                "src/js/muxer/muxer-client.js",
                 "src/js/story-inline-button.js",
                 "src/js/post-inline-button.js",
                 "src/js/main.js",
