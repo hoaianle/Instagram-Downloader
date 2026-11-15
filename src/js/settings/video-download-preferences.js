@@ -1,6 +1,6 @@
 const VIDEO_DOWNLOAD_MODES = Object.freeze({
     HIGHEST: 'highest',
-    H264: 'h264',
+    H264: 'h264', // Hey Apple, why you guy can just support VP9?
 });
 const VIDEO_DOWNLOAD_MODE_STORAGE_KEY = 'instagramDownloaderVideoMode';
 const VIDEO_DOWNLOAD_FALLBACK_STORAGE_KEY = 'instagramDownloaderVideoFallback';

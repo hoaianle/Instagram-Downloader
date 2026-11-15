@@ -180,10 +180,14 @@
         dateFormatSelect.value = downloadFilenamePreferences.dateFormat;
         dateFormatSelect.addEventListener('change', () => {
             downloadFilenamePreferences.setDateFormat(dateFormatSelect.value);
-            Object.values(DOWNLOAD_FILENAME_SCOPES).forEach((scope) => renderFilenameRow(overlay, scope));
+            Object.values(DOWNLOAD_FILENAME_SCOPES).forEach((scope) => {
+                renderFilenameRow(overlay, scope);
+            });
         });
 
-        Object.values(DOWNLOAD_FILENAME_SCOPES).forEach((scope) => renderFilenameRow(overlay, scope));
+        Object.values(DOWNLOAD_FILENAME_SCOPES).forEach((scope) => {
+            renderFilenameRow(overlay, scope);
+        });
         selectScope(activeScope);
     }
 
@@ -354,7 +358,9 @@
             videoDownloadPreferences.fallbackEnabled;
         const dateFormatSelect = modal.querySelector('.igd-date-format-select');
         if (dateFormatSelect) dateFormatSelect.value = downloadFilenamePreferences.dateFormat;
-        Object.values(DOWNLOAD_FILENAME_SCOPES).forEach((scope) => renderFilenameRow(modal, scope));
+        Object.values(DOWNLOAD_FILENAME_SCOPES).forEach((scope) => {
+            renderFilenameRow(modal, scope);
+        });
         modal.hidden = false;
         modal.querySelector('.igd-settings-close').focus();
     }

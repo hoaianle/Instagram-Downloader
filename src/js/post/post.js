@@ -1,3 +1,8 @@
+const IG_POST_ROOT_QUERY_DOC_ID = '27852811784380813';
+
+/**
+ * Convert `DEw5zA4pybv` to `3544587101035505391`
+ */
 function convertToPostId(shortcode) {
     let id = BigInt(0);
     for (let i = 0; i < shortcode.length; i++) {
@@ -7,6 +12,9 @@ function convertToPostId(shortcode) {
     return id.toString(10);
 }
 
+/**
+ * Convert `3544587101035505391` to `DEw5zA4pybv`
+ */
 function convertToShortcode(postId) {
     let id = BigInt(postId);
     let shortcode = '';
@@ -18,8 +26,6 @@ function convertToShortcode(postId) {
     }
     return shortcode;
 }
-
-const IG_POST_ROOT_QUERY_DOC_ID = '27852811784380813';
 
 async function getPostPhotos(shortcode) {
     const apiURL = new URL('/graphql/query', IG_BASE_URL);

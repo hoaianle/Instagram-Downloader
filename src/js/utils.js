@@ -628,7 +628,11 @@ async function handleDownload(e) {
     });
     if (option === 'none') return;
     setDownloadState('ready');
-    option === 'post' ? (data = await downloadPostPhotos()) : (data = await downloadStoryPhotos(option));
+    if (option === 'post') {
+        data = await downloadPostPhotos();
+    } else {
+        data = await downloadStoryPhotos(option);
+    }
     if (!data) return setDownloadState('fail');
     appState.currentDisplay = option;
     renderMedia(data);

@@ -1,3 +1,7 @@
+const IG_SEARCHBOX_PREFECTHABLE_QUERY_DOC_ID = '27706427925724183';
+const IG_STORIES_REELS_QUERY_DOC_ID = '28262315486766731';
+const IG_STORIES_HIGHLIGHTS_QUERY_DOC_ID = '28325328583775973';
+
 async function getUserIdFromSearch(username) {
     if (appCache.userIdsCache.has(username)) return appCache.userIdsCache.get(username);
     const query = username || appState.current.username;
@@ -11,7 +15,7 @@ async function getUserIdFromSearch(username) {
             fb_dtsg: getFbDtsg(),
             fb_api_caller_class: 'RelayModern',
             fb_api_req_friendly_name: 'PolarisSearchBoxRefetchableQuery',
-            doc_id: '27706427925724183',
+            doc_id: IG_SEARCHBOX_PREFECTHABLE_QUERY_DOC_ID,
             variables: JSON.stringify({
                 data: {
                     context: 'blended',
@@ -47,7 +51,7 @@ async function getStoryPhotos(userId) {
             fb_dtsg: getFbDtsg(),
             fb_api_caller_class: 'RelayModern',
             fb_api_req_friendly_name: 'PolarisStoriesV3ReelPageGalleryQuery',
-            doc_id: '28262315486766731',
+            doc_id: IG_STORIES_REELS_QUERY_DOC_ID,
             variables: JSON.stringify({
                 initial_reel_id: userId,
                 reel_ids: [userId],
@@ -78,7 +82,7 @@ async function getHighlightStory(highlightsId) {
             fb_dtsg: getFbDtsg(),
             fb_api_caller_class: 'RelayModern',
             fb_api_req_friendly_name: 'PolarisStoriesV3HighlightsPageQuery',
-            doc_id: '28325328583775973',
+            doc_id: IG_STORIES_HIGHLIGHTS_QUERY_DOC_ID,
             variables: JSON.stringify({
                 initial_reel_id: `highlight:${highlightsId}`,
                 reel_ids: [`highlight:${highlightsId}`],

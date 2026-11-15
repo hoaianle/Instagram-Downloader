@@ -334,6 +334,7 @@ const appState = Object.freeze(
         });
         window.addEventListener('online', () => {
             DISPLAY_CONTAINER.querySelectorAll('img , video').forEach((media) => {
+                // This looks confusing, but it is required to force-reload broken media when the user is online again
                 media.src = media.src;
             });
         });

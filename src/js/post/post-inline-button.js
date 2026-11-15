@@ -412,7 +412,9 @@
         const activeButtons = new Set();
         const existingButtons = document.querySelectorAll(`.${BUTTON_CLASS}, .${DOWNLOAD_ALL_BUTTON_CLASS}`);
         if (!isSupportedView() || !downloadUiPreferences.shows('inline')) {
-            existingButtons.forEach((button) => button.remove());
+            existingButtons.forEach((button) => {
+                button.remove();
+            });
             return;
         }
 
