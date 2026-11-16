@@ -8,7 +8,7 @@ function getUserIdFromLoadedStory(username) {
         const timer = setTimeout(() => finish(''), 800);
         function finish(id) {
             clearTimeout(timer);
-            window.removeEventListener('igd-story-owner-result', onResult);
+            window.removeEventListener('igdStoryOwnerResult', onResult);
             resolve(id);
         }
         function onResult(event) {
@@ -17,8 +17,8 @@ function getUserIdFromLoadedStory(username) {
             const id = String(detail.id ?? '');
             finish(/^\d+$/.test(id) ? id : '');
         }
-        window.addEventListener('igd-story-owner-result', onResult);
-        window.dispatchEvent(new CustomEvent('igd-request-story-owner', { detail: { username, requestId } }));
+        window.addEventListener('igdStoryOwnerResult', onResult);
+        window.dispatchEvent(new CustomEvent('igdRequestStoryOwner', { detail: { username, requestId } }));
     });
 }
 
@@ -76,27 +76,7 @@ async function getUserIdFromSearch(username) {
     } catch (error) {
         console.log(error);
     }
-    // Search is ranked and may omit the requested account. Never use a similar account.
-    return getUserIdFromProfile(query);
-}
-
-async function getUserIdFromProfile(username) {
-    try {
-        const url = new URL('/api/v1/users/web_profile_info/', IG_BASE_URL);
-        url.searchParams.set('username', username);
-        const response = await fetch(url.href, getFetchOptions());
-        if (!response.ok) return '';
-        const json = await response.json();
-        const user = json.data?.user;
-        if (user?.username?.toLowerCase() !== username.toLowerCase()) return '';
-        const id = String(user.id ?? user.pk ?? '');
-        if (!/^\d+$/.test(id)) return '';
-        appCache.userIdsCache.set(username, id);
-        return id;
-    } catch (error) {
-        console.log(error);
-        return '';
-    }
+    return '';
 }
 
 async function getStoryPhotos(userId) {

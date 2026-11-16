@@ -49,7 +49,7 @@
         // Conflicting identities must fall back to the existing lookup rather than guess.
         return ids.size === 1 ? [...ids][0] : '';
     }
-    window.addEventListener('igd-request-story-owner', (event) => {
+    window.addEventListener('igdRequestStoryOwner', (event) => {
         const { username, requestId } = event.detail ?? {};
         if (typeof username !== 'string' || typeof requestId !== 'string') return;
         const expected = username.toLowerCase();
@@ -58,7 +58,7 @@
             if (parts[0] !== 'stories' || parts[1]?.toLowerCase() !== expected || expected === 'highlights') return;
             const id = findOwner(expected);
             if (!id && attempt < 2) return setTimeout(() => respond(attempt + 1), 150);
-            window.dispatchEvent(new CustomEvent('igd-story-owner-result', { detail: { username, requestId, id } }));
+            window.dispatchEvent(new CustomEvent('igdStoryOwnerResult', { detail: { username, requestId, id } }));
         }
         respond(0);
     });
