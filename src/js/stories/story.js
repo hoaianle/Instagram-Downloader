@@ -2,9 +2,38 @@ const IG_SEARCHBOX_PREFECTHABLE_QUERY_DOC_ID = '27706427925724183';
 const IG_STORIES_REELS_QUERY_DOC_ID = '28262315486766731';
 const IG_STORIES_HIGHLIGHTS_QUERY_DOC_ID = '28325328583775973';
 
+function getUserIdFromLoadedStory(username) {
+    return new Promise((resolve) => {
+        const requestId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        const timer = setTimeout(() => finish(''), 800);
+        function finish(id) {
+            clearTimeout(timer);
+            window.removeEventListener('igdStoryOwnerResult', onResult);
+            resolve(id);
+        }
+        function onResult(event) {
+            const detail = event.detail;
+            if (detail?.requestId !== requestId || detail.username !== username) return;
+            const id = String(detail.id ?? '');
+            finish(/^\d+$/.test(id) ? id : '');
+        }
+        window.addEventListener('igdStoryOwnerResult', onResult);
+        window.dispatchEvent(new CustomEvent('igdRequestStoryOwner', { detail: { username, requestId } }));
+    });
+}
+
 async function getUserIdFromSearch(username) {
-    if (appCache.userIdsCache.has(username)) return appCache.userIdsCache.get(username);
-    const query = username || appState.current.username;
+    const query = String(username || appState.current.username || '').trim();
+    if (!query) return '';
+    if (appCache.userIdsCache.has(query)) {
+        const id = appCache.userIdsCache.get(query);
+        return id;
+    }
+    const loadedId = await getUserIdFromLoadedStory(query);
+    if (loadedId) {
+        appCache.userIdsCache.set(query, loadedId);
+        return loadedId;
+    }
     try {
         const apiURL = new URL('/graphql/query', IG_BASE_URL);
         const fetchOptions = getFetchOptions();
@@ -20,7 +49,7 @@ async function getUserIdFromSearch(username) {
                 data: {
                     context: 'blended',
                     include_reel: 'true',
-                    query: username,
+                    query,
                     rank_token: '',
                     search_surface: 'web_top_search',
                 },
@@ -29,14 +58,25 @@ async function getUserIdFromSearch(username) {
             server_timestamps: true,
         }).toString();
         const respone = await fetch(apiURL.href, fetchOptions);
+        if ([401, 403, 429].includes(respone.status)) return '';
+        if (!respone.ok) throw new Error(`User search failed (${respone.status})`);
         const json = await respone.json();
-        const users = json.data['xdt_api__v1__fbsearch__topsearch_connection'].users;
-        const exactMatch = users.find((item) => item.user['username'] === query);
-        return (exactMatch ?? users[0]).user['id'];
+        const users = json.data?.['xdt_api__v1__fbsearch__topsearch_connection']?.users ?? [];
+        const exactIds = new Set(
+            users
+                .filter((item) => item?.user?.username?.toLowerCase() === query.toLowerCase())
+                .map(({ user }) => String(user.id ?? user.pk ?? ''))
+                .filter((id) => /^\d+$/.test(id)),
+        );
+        if (exactIds.size === 1) {
+            const [id] = exactIds;
+            appCache.userIdsCache.set(query, id);
+            return id;
+        }
     } catch (error) {
         console.log(error);
-        return '';
     }
+    return '';
 }
 
 async function getStoryPhotos(userId) {
@@ -63,7 +103,7 @@ async function getStoryPhotos(userId) {
         }).toString();
         const respone = await fetch(apiURL.href, fetchOptions);
         const json = await respone.json();
-        return json.data['xdt_api__v1__feed__reels_media__connection'].edges[0].node;
+        return json.data?.['xdt_api__v1__feed__reels_media__connection']?.edges?.[0]?.node ?? null;
     } catch (error) {
         console.log(error);
         return null;
@@ -94,7 +134,7 @@ async function getHighlightStory(highlightsId) {
         }).toString();
         const respone = await fetch(apiURL.href, fetchOptions);
         const json = await respone.json();
-        return json.data['xdt_api__v1__feed__reels_media__connection'].edges[0].node;
+        return json.data?.['xdt_api__v1__feed__reels_media__connection']?.edges?.[0]?.node ?? null;
     } catch (error) {
         console.log(error);
         return null;
@@ -107,9 +147,11 @@ async function downloadStoryPhotos(type = 'stories') {
         if (!appState.current.highlights) return null;
         json = await getHighlightStory(appState.current.highlights);
     } else {
-        const userId = await getUserIdFromSearch(appState.current.username);
+        const username = String(appState.current.username || '').trim();
+        const userId = await getUserIdFromSearch(username);
         if (!userId) return null;
         json = await getStoryPhotos(userId);
+        if (json?.user?.username?.toLowerCase() !== username.toLowerCase()) return null;
     }
     if (!json?.items?.length) return null;
     const data = {
