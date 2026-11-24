@@ -8,158 +8,7 @@
         return window.location.pathname === '/' || IG_POST_REGEX.test(window.location.pathname);
     }
 
-    // /reels/:code is a vertical feed: every reel shares the page URL, which
-    // tracks only the reel currently on screen, and its actions are a column.
-    function isReelsFeed() {
-        return /^\/reels\/[A-Za-z0-9_-]+/.test(window.location.pathname);
-    }
-
-    function isActiveReel(root) {
-        const video = root.querySelector?.('video');
-        if (!video) return false;
-        const rect = video.getBoundingClientRect();
-        return rect.top <= innerHeight / 2 && rect.bottom >= innerHeight / 2;
-    }
-
-    function isVisible(element) {
-        const rect = element.getBoundingClientRect();
-        const style = getComputedStyle(element);
-        return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
-    }
-
-    // Icon geometry is independent of Instagram's translated accessibility labels.
-    // Keep the label fallback for older icon variants.
-    function isShareIcon(icon) {
-        const path = icon.querySelector('path')?.getAttribute('d') ?? '';
-        return path.startsWith('M13.973 20.046') || ['Share', 'Share Post'].includes(icon.getAttribute('aria-label'));
-    }
-
-    function findPostActionTargets() {
-        const targets = [];
-        const handledRoots = new Set();
-        for (const icon of document.querySelectorAll('svg[aria-label]')) {
-            if (!isShareIcon(icon) || !isVisible(icon)) continue;
-            const anchorButton = icon.closest('button, [role="button"]');
-            if (!anchorButton) continue;
-            const root = getPostRoot(anchorButton);
-            if (handledRoots.has(root) || (root === document && !IG_POST_REGEX.test(location.pathname))) continue;
-            const reelsFeed = isReelsFeed();
-            if (reelsFeed && !isActiveReel(root)) continue;
-            const directions = reelsFeed ? ['column', 'column-reverse'] : ['row', 'row-reverse'];
-
-            // Stop at the innermost action group (a column on /reels/). The outer grid has
-            // a separate Save cell: inserting a new child there creates a new row.
-            let container = anchorButton.parentElement;
-            while (container && container !== root && container !== document.body) {
-                const style = getComputedStyle(container);
-                if (style.display === 'grid' || style.display === 'inline-grid') break;
-                const icons = [...container.querySelectorAll('svg[aria-label]')].filter(
-                    (item) => !item.closest(OWN_BUTTONS),
-                );
-                if (
-                    ['flex', 'inline-flex'].includes(style.display) &&
-                    directions.includes(style.flexDirection) &&
-                    icons.length >= 3 &&
-                    icons.length <= 6
-                ) {
-                    handledRoots.add(root);
-                    targets.push({ actionsContainer: container, anchorButton });
-                    break;
-                }
-                container = container.parentElement;
-            }
-        }
-
-        // Some posts do not render a Share action at all. Fall back to the
-        // horizontal post action section and insert before its final action
-        // (normally Save). This structural fallback also works with translated
-        // accessibility labels.
-        if (!isReelsFeed()) {
-            for (const section of document.querySelectorAll('section')) {
-                if (!isVisible(section)) continue;
-                const sectionStyle = getComputedStyle(section);
-                const sectionIcons = [...section.querySelectorAll('svg[aria-label]')].filter(
-                    (icon) => isVisible(icon) && !icon.closest(OWN_BUTTONS),
-                );
-                if (sectionIcons.length < 3 || sectionIcons.length > 6) continue;
-
-                let actionsContainer = section;
-                let icons = sectionIcons;
-                let minimumActionItems = 3;
-                let useLastNativeItem = false;
-                if (['grid', 'inline-grid'].includes(sectionStyle.display)) {
-                    actionsContainer = [...section.children].find((child) => {
-                        const style = getComputedStyle(child);
-                        const childIcons = [...child.querySelectorAll('svg[aria-label]')].filter(
-                            (icon) => isVisible(icon) && !icon.closest(OWN_BUTTONS),
-                        );
-                        return (
-                            isVisible(child) &&
-                            ['flex', 'inline-flex'].includes(style.display) &&
-                            ['row', 'row-reverse'].includes(style.flexDirection) &&
-                            childIcons.length >= 2
-                        );
-                    });
-                    if (!actionsContainer) continue;
-                    icons = [...actionsContainer.querySelectorAll('svg[aria-label]')].filter(
-                        (icon) => isVisible(icon) && !icon.closest(OWN_BUTTONS),
-                    );
-                    minimumActionItems = 2;
-                    useLastNativeItem = true;
-                } else if (
-                    !['flex', 'inline-flex'].includes(sectionStyle.display) ||
-                    !['row', 'row-reverse'].includes(sectionStyle.flexDirection)
-                ) {
-                    continue;
-                }
-
-                const actionItems = icons
-                    .map((icon) => icon.closest('button, [role="button"]'))
-                    .map((button) => findDirectChild(actionsContainer, button))
-                    .filter((item, index, items) => item && items.indexOf(item) === index);
-                if (actionItems.length < minimumActionItems) continue;
-
-                const anchorItem = useLastNativeItem
-                    ? [...actionsContainer.children].filter((item) => !item.matches(OWN_BUTTONS)).at(-1)
-                    : actionItems[actionItems.length - 2];
-                if (!anchorItem) continue;
-                const root = getPostRoot(anchorItem);
-                if (handledRoots.has(root) || (root === document && !IG_POST_REGEX.test(location.pathname))) continue;
-
-                handledRoots.add(root);
-                targets.push({ actionsContainer, anchorButton: anchorItem });
-            }
-        }
-        return targets;
-    }
-
-    function findDirectChild(container, descendant) {
-        let child = descendant;
-        while (child?.parentElement && child.parentElement !== container) child = child.parentElement;
-        return child?.parentElement === container ? child : null;
-    }
-
-    function getPostRoot(actionButton) {
-        const article = actionButton.closest('article');
-        if (article || !isReelsFeed()) return article ?? document;
-        // A reel's own container is the largest ancestor holding only its Share
-        // button. Its video can be missing while it loads lazily off screen.
-        let reel = actionButton;
-        while (
-            reel.parentElement &&
-            reel.parentElement !== document.body &&
-            countShareButtons(reel.parentElement) === 1
-        ) {
-            reel = reel.parentElement;
-        }
-        return reel;
-    }
-
-    function countShareButtons(element) {
-        return [...element.querySelectorAll('svg[aria-label]')].filter(
-            (icon) => isShareIcon(icon) && icon.closest('button, [role="button"]'),
-        ).length;
-    }
+    const { isReelsFeed, isVisible, findDirectChild } = postActionTargets;
 
     function extractShortcode(href) {
         const path = new URL(href, window.location.origin).pathname;
@@ -419,12 +268,11 @@
         }
 
         const handledContainers = new Set();
-        for (const { actionsContainer, anchorButton } of findPostActionTargets()) {
+        for (const { actionsContainer, anchorButton, root } of postActionTargets.find()) {
             if (!actionsContainer || handledContainers.has(actionsContainer)) continue;
             handledContainers.add(actionsContainer);
 
             const anchorItem = findDirectChild(actionsContainer, anchorButton);
-            const root = getPostRoot(anchorButton);
             const shortcode = getPostShortcode(root);
             if (!anchorItem || !shortcode) continue;
 

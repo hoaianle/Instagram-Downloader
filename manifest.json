@@ -32,6 +32,7 @@
                 "src/js/muxer/dash.js",
                 "src/js/muxer/muxer-client.js",
                 "src/js/stories/story-inline-button.js",
+                "src/js/post/post-action-targets.js",
                 "src/js/post/post-inline-button.js",
                 "src/js/main.js",
                 "src/js/post/post.js",
