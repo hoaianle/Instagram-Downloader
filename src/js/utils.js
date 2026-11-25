@@ -436,6 +436,8 @@ async function downloadInlineMedia({
 }) {
     if (button.disabled) return;
     setInlineDownloadProgress(button, 0, operationKey);
+    const summary = createDownloadSummary();
+    let currentItem = null;
     try {
         const data = await getInlineDownloadData(type, shortcode);
         if (!data?.media?.length) throw new Error('No downloadable media found');
@@ -446,22 +448,30 @@ async function downloadInlineMedia({
             else if (type === 'post') item = resolveSelectedPostMedia(data, selection, shortcode);
             else item = data.media[Math.min(Math.max(index, 0), data.media.length - 1)];
             if (!item) throw new Error('Unable to identify the currently displayed media safely');
-            const blob = await fetchBestMediaBlob(item, ({ percent }) =>
+            setDownloadSummaryMedia(summary, data, [item]);
+            currentItem = item;
+            const blob = await fetchMediaWithSummary(item, ({ percent }) =>
                 setInlineDownloadProgress(button, percent, operationKey),
             );
             setInlineDownloadProgress(button, 100, operationKey);
             saveFile(blob, getMediaFileName(data, item, blob));
+            recordDownloadSummaryItem(summary, item, blob);
+            summary.saved = true;
             return;
         }
 
         const files = [];
         const usedNames = new Set();
         let processed = 0;
+        setDownloadSummaryMedia(summary, data, data.media);
         for (const item of data.media) {
-            const blob = await fetchBestMediaBlob(item, ({ percent }) => {
+            currentItem = item;
+            const blob = await fetchMediaWithSummary(item, ({ percent }) => {
                 setInlineDownloadProgress(button, ((processed + percent / 100) / data.media.length) * 95, operationKey);
             });
             files.push({ title: getUniqueArchiveEntryName(getMediaFileName(data, item, blob), usedNames), data: blob });
+            recordDownloadSummaryItem(summary, item, blob);
+            currentItem = null;
             processed++;
             setInlineDownloadProgress(button, (processed / data.media.length) * 95, operationKey);
         }
@@ -470,24 +480,32 @@ async function downloadInlineMedia({
         const zip = await createZip(files);
         setInlineDownloadProgress(button, 100, operationKey);
         saveFile(zip, getArchiveFileName(data));
+        summary.saved = true;
     } catch (error) {
         console.log(error);
+        recordDownloadSummaryError(summary, error, currentItem);
     } finally {
+        showDownloadSummary(summary);
         setTimeout(() => resetInlineDownloadProgress(button, operationKey), 300);
     }
 }
 
 async function saveMedia(data, item) {
     const DOWNLOAD_BUTTON = document.querySelector('.download-button');
+    const summary = createDownloadSummary(data, [item]);
     try {
         setButtonProgress(DOWNLOAD_BUTTON, 0);
-        const blob = await fetchBestMediaBlob(item, ({ percent }) => {
+        const blob = await fetchMediaWithSummary(item, ({ percent }) => {
             setButtonProgress(DOWNLOAD_BUTTON, percent);
         });
         saveFile(blob, getMediaFileName(data, item, blob));
+        recordDownloadSummaryItem(summary, item, blob);
+        summary.saved = true;
     } catch (error) {
         console.log(error);
+        recordDownloadSummaryError(summary, error, item);
     } finally {
+        showDownloadSummary(summary);
         resetDownloadState();
     }
 }
@@ -496,22 +514,30 @@ async function saveAllSelected() {
     const { data } = appState;
     const ACTIVE_BUTTON = document.querySelector('.all-download-button');
     const total = appState.selected.size;
+    const summary = createDownloadSummary(
+        data,
+        [...appState.selected].map((index) => data.media[index]),
+    );
     let processed = 0;
     setGroupDownloadProgress(ACTIVE_BUTTON, 0);
     for (const index of appState.selected) {
         const item = data.media[index];
         try {
-            const blob = await fetchBestMediaBlob(item, ({ percent }) => {
+            const blob = await fetchMediaWithSummary(item, ({ percent }) => {
                 setGroupDownloadProgress(ACTIVE_BUTTON, ((processed + percent / 100) / total) * 100);
             });
             saveFile(blob, getMediaFileName(data, item, blob));
+            recordDownloadSummaryItem(summary, item, blob);
+            summary.saved = true;
         } catch (error) {
             console.log(error);
+            recordDownloadSummaryError(summary, error, item);
         } finally {
             processed++;
             setGroupDownloadProgress(ACTIVE_BUTTON, (processed / total) * 100);
         }
     }
+    showDownloadSummary(summary);
     resetGroupDownloadState();
 }
 
@@ -520,12 +546,18 @@ async function saveZip() {
     setGroupDownloadProgress(ACTIVE_BUTTON, 0);
     const media = Array.from(appState.selected).map((index) => ({ item: appState.data.media[index] }));
     const zipFileName = getArchiveFileName(appState.data, media[0]?.item);
+    const summary = createDownloadSummary(
+        appState.data,
+        media.map(({ item }) => item),
+    );
+    let currentItem = null;
     async function fetchSelectedMedia() {
         let processed = 0;
         const results = [];
         const usedNames = new Set();
         for (const mediaItem of media) {
-            const blob = await fetchBestMediaBlob(mediaItem.item, ({ percent }) => {
+            currentItem = mediaItem.item;
+            const blob = await fetchMediaWithSummary(mediaItem.item, ({ percent }) => {
                 const downloadPercent = ((processed + percent / 100) / media.length) * 95;
                 setGroupDownloadProgress(ACTIVE_BUTTON, downloadPercent);
             });
@@ -533,6 +565,8 @@ async function saveZip() {
                 title: getUniqueArchiveEntryName(getMediaFileName(appState.data, mediaItem.item, blob), usedNames),
                 data: blob,
             });
+            recordDownloadSummaryItem(summary, mediaItem.item, blob);
+            currentItem = null;
             processed++;
             setGroupDownloadProgress(ACTIVE_BUTTON, (processed / media.length) * 95);
         }
@@ -544,12 +578,16 @@ async function saveZip() {
         const blob = await createZip(data);
         setGroupDownloadProgress(ACTIVE_BUTTON, 100);
         saveFile(blob, zipFileName);
+        summary.saved = true;
         appState.selected.clear();
         updateSelectedMedia();
         resetGroupDownloadState();
     } catch (error) {
         console.log(error);
+        recordDownloadSummaryError(summary, error, currentItem);
         resetGroupDownloadState();
+    } finally {
+        showDownloadSummary(summary);
     }
 }
 

@@ -266,6 +266,20 @@
                             </span>
                         </label>
                     </section>
+                    <section class="igd-settings-section">
+                        <h3>Download notifications</h3>
+                        <label class="igd-notifications-option">
+                            <input type="checkbox" name="igd-download-notifications">
+                            <span>Show download summaries</span>
+                        </label>
+                        <p class="igd-settings-help">Off by default. Show downloaded / total items, item numbers, resolutions, DASH or progressive, and any failures or skipped items.</p>
+                        <div class="igd-notification-duration">
+                            <label for="igd-notification-duration">Notification duration</label>
+                            <output for="igd-notification-duration">5 seconds</output>
+                            <input type="range" id="igd-notification-duration" min="1" max="15" step="1" value="5">
+                            <small class="igd-settings-help">1–15 seconds · Default: 5 seconds</small>
+                        </div>
+                    </section>
                     <section class="igd-settings-section igd-filename-settings">
                         <h3>File name templates</h3>
                         <p class="igd-settings-help">Drag variables into a row or click one to add it to the active row. Underscores are added automatically; unavailable values are skipped.</p>
@@ -333,6 +347,15 @@
             videoDownloadPreferences.setFallbackEnabled(event.target.checked);
         });
         bindFilenameBuilder(overlay);
+        overlay.querySelector('input[name="igd-download-notifications"]').addEventListener('change', (event) => {
+            downloadNotificationPreferences.setEnabled(event.target.checked);
+        });
+        overlay.querySelector('#igd-notification-duration').addEventListener('input', (event) => {
+            downloadNotificationPreferences.setDurationSeconds(event.target.value);
+            const seconds = downloadNotificationPreferences.durationSeconds;
+            overlay.querySelector('output[for="igd-notification-duration"]').textContent =
+                `${seconds} ${seconds === 1 ? 'second' : 'seconds'}`;
+        });
         document.addEventListener('keydown', (event) => {
             if (event.key === 'Escape' && !overlay.hidden) closeModal();
         });
@@ -357,6 +380,12 @@
         modal.querySelector('input[name="igd-video-download-fallback"]').checked =
             videoDownloadPreferences.fallbackEnabled;
         const dateFormatSelect = modal.querySelector('.igd-date-format-select');
+        modal.querySelector('input[name="igd-download-notifications"]').checked =
+            downloadNotificationPreferences.enabled;
+        modal.querySelector('#igd-notification-duration').value = downloadNotificationPreferences.durationSeconds;
+        const seconds = downloadNotificationPreferences.durationSeconds;
+        modal.querySelector('output[for="igd-notification-duration"]').textContent =
+            `${seconds} ${seconds === 1 ? 'second' : 'seconds'}`;
         if (dateFormatSelect) dateFormatSelect.value = downloadFilenamePreferences.dateFormat;
         Object.values(DOWNLOAD_FILENAME_SCOPES).forEach((scope) => {
             renderFilenameRow(modal, scope);
