@@ -89,7 +89,11 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    overflow: scroll;
+    overflow-x: hidden;
+    overflow-y: auto;
+    scrollbar-gutter: stable;
+    scrollbar-width: thin;
+    scrollbar-color: rgb(var(--ig-secondary-text, 115, 115, 115)) rgb(var(--ig-primary-background, 255, 255, 255));
     z-index: 0;
 }
 
@@ -108,7 +112,22 @@
 }
 
 .display-container > .media-container::-webkit-scrollbar {
-    display: none;
+    width: 10px;
+}
+
+.display-container > .media-container::-webkit-scrollbar-track {
+    background: rgb(var(--ig-primary-background, 255, 255, 255));
+}
+
+.display-container > .media-container::-webkit-scrollbar-thumb {
+    min-height: 32px;
+    background: rgb(var(--ig-secondary-text, 115, 115, 115));
+    border: 2px solid rgb(var(--ig-primary-background, 255, 255, 255));
+    border-radius: 10px;
+}
+
+.display-container > .media-container::-webkit-scrollbar-thumb:hover {
+    background: rgb(var(--ig-primary-text, 38, 38, 38));
 }
 
 .display-container > .media-container > div {
