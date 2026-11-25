@@ -29,7 +29,6 @@
             "matches": ["https://www.instagram.com/*"],
             "js": [
                 "src/js/utils.js",
-                "src/js/download-feedback.js",
                 "src/js/muxer/dash.js",
                 "src/js/muxer/muxer-client.js",
                 "src/js/stories/story-inline-button.js",
